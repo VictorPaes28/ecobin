@@ -1,0 +1,732 @@
+<title>Montagem do EcoBin</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: bancada — desenho da protoboard à esquerda, cartão da etapa à direita; empilha no celular */
+  :root {
+    --bg: #eef1ef;
+    --panel: #ffffff;
+    --ink: #17201c;
+    --muted: #59655f;
+    --line: #d3dbd6;
+    --accent: #b4532a;          /* cobre */
+    --accent-soft: #f6e3d9;
+    --board: #fbfbf7;
+    --board-edge: #cfd4cc;
+    --trench: #e7e9e2;
+    --hole: #4a524e;
+    --rail-red: #d23b3b;
+    --rail-blue: #2f6fd6;
+    --w-3v3: #d93636;
+    --w-5v: #e8780f;
+    --w-gnd: #2a2f2c;
+    --w-y: #c99a06;
+    --w-g: #1f9d55;
+    --w-b: #2563eb;
+    --w-v: #8b3fd1;
+    --warn-bg: #fff4e5;
+    --warn-ink: #8a4b06;
+    --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111513; --panel: #1a201d; --ink: #e4ebe7; --muted: #9aa8a1; --line: #2c3531;
+      --accent: #e3824f; --accent-soft: #3a261c;
+      --board: #262c29; --board-edge: #3a423e; --trench: #1d2220; --hole: #0b0d0c;
+      --rail-red: #ff6b6b; --rail-blue: #6b9bff;
+      --w-3v3: #ff6262; --w-5v: #ffa14a; --w-gnd: #c4ccc8; --w-y: #f2c94c; --w-g: #4cd38a; --w-b: #6b9bff; --w-v: #b583ff;
+      --warn-bg: #3a2a12; --warn-ink: #ffcf8a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111513; --panel: #1a201d; --ink: #e4ebe7; --muted: #9aa8a1; --line: #2c3531;
+    --accent: #e3824f; --accent-soft: #3a261c;
+    --board: #262c29; --board-edge: #3a423e; --trench: #1d2220; --hole: #0b0d0c;
+    --rail-red: #ff6b6b; --rail-blue: #6b9bff;
+    --w-3v3: #ff6262; --w-5v: #ffa14a; --w-gnd: #c4ccc8; --w-y: #f2c94c; --w-g: #4cd38a; --w-b: #6b9bff; --w-v: #b583ff;
+    --warn-bg: #3a2a12; --warn-ink: #ffcf8a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.5 var(--font-ui);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 40px;
+  }
+  .page { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
+  header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+  .tag { font: 600 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+
+  .wrap { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 920px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+
+  .figure { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .fig-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+  .scroll { overflow-x: auto; overflow-y: hidden; }
+  #bb { display: block; width: 100%; height: auto; }
+  .zoom #bb { width: 200%; }
+
+  .btn {
+    font: 600 13px/1 var(--font-ui); color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 7px; padding: 8px 11px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .panel { display: grid; gap: 14px; min-width: 0; }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    font: 600 12.5px/1 var(--font-ui); padding: 7px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pill .n { font-family: var(--font-mono); }
+  .pill.on { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+  .pill.ok::after { content: "✓"; color: var(--w-g); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+  .card h2 { margin: 0; font-size: 21px; text-wrap: balance; }
+  .card p { margin: 0; }
+  .conns { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .conns li {
+    display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  }
+  .conns li:hover, .conns li.focus { border-color: var(--accent); background: var(--accent-soft); }
+  .conns .sw { width: 22px; height: 6px; margin-top: 8px; }
+  .conns .what { font-weight: 600; }
+  .conns .where { font: 13px/1.45 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+  .onde { padding: 10px 12px; border-radius: 8px; border: 1px dashed var(--accent); font-size: 14px; }
+  .note { padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-ink); font-size: 14px; }
+  .tips { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--ink); }
+  .nav { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .done { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; cursor: pointer; }
+  .done input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  .parts { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  .parts h3 { margin: 0 0 8px; font-size: 14px; }
+  .parts ul { margin: 0; padding-left: 18px; columns: 2 220px; column-gap: 28px; font-size: 14px; }
+  .pos { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; }
+  .pos-t { font-weight: 700; }
+  .pos-d { margin: 0; color: var(--muted); font-size: 14px; }
+  .pos-f { display: flex; flex-wrap: wrap; gap: 12px; }
+  .pos-f label { display: grid; gap: 4px; font-size: 14px; flex: 1 1 150px; }
+  .pos-f label span { color: var(--muted); font-size: 12.5px; }
+  .pos-f input { font: 600 18px var(--font-mono); width: 100%; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .mono { font-family: var(--font-mono); }
+
+  /* SVG */
+  .t-lbl { font: 600 9px var(--font-mono); fill: var(--muted); }
+  .t-pin { font: 600 8px var(--font-mono); fill: #dbe6f0; }
+  .t-mod { font: 600 8.5px var(--font-mono); fill: #f2f2f2; }
+  .it { transition: opacity .25s; }
+  .it.future { display: none; }
+  .it.past { opacity: .32; }
+  .it.current .glow { stroke: var(--accent); }
+  svg.focusing .it { opacity: .15; }
+  svg.focusing .it.focus { opacity: 1; }
+  .pin.used { fill: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .it { transition: none; } }
+</style>
+
+<div class="page">
+  <header>
+    <div>
+      <div class="tag">EcoBin · ESP32 DevKit V1 · protoboard dupla</div>
+      <h1>Montagem do EcoBin, passo a passo</h1>
+      <p class="sub">Cada etapa mostra só as peças e fios novos. Os anteriores ficam apagados. Toque numa ligação da lista para destacá-la no desenho. Monte com o cabo USB desligado.</p>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section class="figure" aria-label="Desenho da protoboard">
+      <div class="fig-bar">
+        <div class="legend" id="legend"></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap">
+          <button class="btn" id="btnTudo" aria-pressed="false">Ver tudo</button>
+          <button class="btn" id="btnZoom" aria-pressed="false">Ampliar</button>
+        </div>
+      </div>
+      <div class="scroll" id="scroll"><svg id="bb" role="img" aria-label="Protoboards com ESP32 e componentes"></svg></div>
+    </section>
+
+    <section class="panel">
+      <div class="pos" aria-label="Posição do ESP32">
+        <div class="pos-t">Onde está o seu ESP32?</div>
+        <p class="pos-d">Olhe na sua protoboard em que fileira ficaram os dois últimos pinos (os mais perto do USB). O desenho e todas as etapas se ajustam.</p>
+        <div class="pos-f">
+          <label for="inVin">Fileira do <b>VIN</b> <span>(protoboard esquerda)</span><input id="inVin" type="number" min="15" max="30" inputmode="numeric"></label>
+          <label for="in33">Fileira do <b>3V3</b> <span>(protoboard direita)</span><input id="in33" type="number" min="15" max="30" inputmode="numeric"></label>
+        </div>
+      </div>
+      <nav class="steps" id="steps" aria-label="Etapas"></nav>
+      <article class="card" id="card"></article>
+    </section>
+  </div>
+
+  <section class="parts">
+    <h3>Material desta montagem</h3>
+    <ul>
+      <li>ESP32 DevKit V1 (30 pinos, ESP-WROOM-32) + cabo micro-USB</li>
+      <li>2 protoboards</li>
+      <li>3 resistores de <b>300 Ω</b> (laranja · preto · marrom), um por LED</li>
+      <li>3 resistores de <b>1 kΩ</b> (marrom · preto · vermelho)</li>
+      <li>3 LEDs comuns: verde, amarelo e vermelho</li>
+            <li>Botão (push button)</li>
+      <li>Sensor infravermelho TCRT5000 (4 pinos; o A0 não é usado)</li>
+      <li>Sensor ultrassônico HC-SR04</li>
+      <li>Jumpers macho-macho e macho-fêmea</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  const P = 16;                 // distância entre furos (0,1 polegada)
+  const OX = 7 * P;             // protoboard esquerda
+  const RX = OX + 14.8 * P;     // protoboard direita (pinos da direita do ESP32 na coluna c)
+  const ROWS = 30;
+  const NPINS = 15;
+  // Protoboard esquerda: trilhas + e − só do lado esquerdo
+  const LCOL = { "+": 0, "-": 1, a: 3, b: 4, c: 5, d: 6, e: 7, f: 9, g: 10, h: 11, i: 12, j: 13 };
+  // Protoboard direita: as trilhas da esquerda dela ficam embaixo do ESP32; usamos as da direita
+  const RCOL = { lp: 0, ln: 1.8, a: 4.4, b: 5.4, c: 6.4, d: 7.4, e: 8.4, f: 10.4, g: 11.4, h: 12.4, i: 13.4, j: 14.4, "-": 16.6, "+": 18.4 };
+  const RTRENCH = 9.4;
+  // ESP32 DevKit V1, 30 pinos, antena para cima
+  const LPINS = ["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"];
+  const RPINS = ["D23","D22","TX0","RX0","D21","D19","D18","D5","TX2","RX2","D4","D2","D15","GND","3V3"];
+
+  // ---------- Posição do ESP32 (informada pelo usuário) ----------
+  const KEY = "ecobin-montagem-v2";
+  let salvo = {};
+  try { salvo = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { }
+  let vinRow = clamp(+salvo.vin || 30, 15, 30);   // fileira do VIN na protoboard esquerda
+  let v33Row = clamp(+salvo.v33 || 30, 15, 30);   // fileira do 3V3 na protoboard direita
+  let eL, eR, OYL, OYR, W, H, MOD, STEPS;
+
+  function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  const yb = (b, r) => (b === "L" ? OYL : OYR) + (r - 1) * P;
+  const cx = (b, c) => b === "L" ? OX + LCOL[c] * P : RX + RCOL[c] * P;
+  // As trilhas têm grupos de 5 furos: não existe furo nas fileiras múltiplas de 6
+  const trilha = r => { r = clamp(r, 1, 29); return r % 6 ? r : r + 1; };
+  const L = (c, r) => `L:${c}:${c === "+" || c === "-" ? trilha(r) : r}`;
+  const R = (c, r) => `R:${c}:${c === "+" || c === "-" ? trilha(r) : r}`;
+
+  function pt(s) {
+    if (MOD[s]) return MOD[s];
+    const [b, c, r] = s.split(":");
+    return [cx(b, c), yb(b, +r)];
+  }
+  function nome(s) {
+    if (s.startsWith("IR:")) return "sensor IR, pino " + s.slice(3);
+    if (s.startsWith("HC:")) return "HC-SR04, pino " + s.slice(3);
+    if (s.startsWith("POT:")) return ["", "potenciômetro, terminal da ponta", "potenciômetro, terminal do meio", "potenciômetro, outra ponta"][+s.slice(4)];
+    const [b, c, r] = s.split(":");
+    const lado = b === "L" ? "esquerda" : "direita";
+    if (c === "+") return b === "L" ? "trilha + da esquerda (3,3 V), qualquer furo" : "trilha + da direita (5 V), qualquer furo";
+    if (c === "-") return "trilha − da " + lado + " (GND), qualquer furo";
+    return lado + " " + c + r;
+  }
+
+  const COR = { "3v3": "--w-3v3", "5v": "--w-5v", gnd: "--w-gnd", y: "--w-y", g: "--w-g", b: "--w-b", v: "--w-v", r: "--w-3v3" };
+
+  // ---------- Etapas (todas as fileiras calculadas a partir da posição do ESP32) ----------
+  function montarEtapas() {
+    const ultimo = yb("L", eL + 14);              // altura do último par de pinos (VIN / 3V3)
+    const btn = eR >= 6 ? 2 : 22;                 // botão fora das fileiras dos pinos da direita
+    return [
+      {
+        t: "Encaixe o ESP32",
+        lixeira: "o ESP32 e as protoboards vão dentro de uma caixinha presa em cima da tampa. Só os sensores, os LEDs e o botão aparecem do lado de fora.",
+        lead: "Antena (parte metálica) para cima, conector USB para baixo. O ESP32 fica atravessado entre as duas protoboards.",
+        items: [],
+        tips: [
+          "Pinos do lado esquerdo (EN … VIN) na coluna h da protoboard esquerda.",
+          "Pinos do lado direito (D23 … 3V3) na coluna c da protoboard direita.",
+          `Na sua montagem: EN na fileira ${eL} e VIN na ${eL + 14} (esquerda); D23 na fileira ${eR} e 3V3 na ${eR + 14} (direita).`,
+          "Se for diferente, ajuste as duas fileiras no quadro \"Onde está o seu ESP32\": o guia inteiro se recalcula.",
+          "Se você já tinha colocado o potenciômetro, pode tirar ele e os 3 fios: o limiar agora é ajustado pelo painel.",
+        ],
+        note: "O ESP32 cobre as trilhas + e − do meio (da protoboard direita). Elas não serão usadas. Em cada fileira de pino sobram livres os furos f e g (esquerda) e d e e (direita).",
+      },
+      {
+        t: "Alimentação",
+        lixeira: "na apresentação, o cabo USB vai num power bank ou num carregador de celular.",
+        lead: "O 3V3 sai do lado direito e alimenta a trilha + da esquerda. O VIN (5 V) sai do lado esquerdo e alimenta a trilha + da direita. Os dois fios passam por baixo do ESP32.",
+        items: [
+          { k: "wire", a: R("d", eR + 14), b: L("+", eL + 14), c: "3v3", via: [[cx("R", "d"), ultimo + 2.1 * P], [cx("L", "+"), ultimo + 2.1 * P]], what: "3V3 → trilha + esquerda" },
+          { k: "wire", a: L("f", eL + 14), b: R("+", eR + 14), c: "5v", via: [[cx("L", "f"), ultimo + 3.3 * P], [cx("R", "+"), ultimo + 3.3 * P]], what: "VIN → trilha + direita" },
+          { k: "wire", a: L("g", eL + 13), b: L("-", eL + 13), c: "gnd", what: "GND (esquerda) → trilha − esquerda" },
+          { k: "wire", a: R("e", eR + 13), b: R("-", eR + 13), c: "gnd", what: "GND (direita) → trilha − direita" },
+        ],
+        tips: ["Nas trilhas + e − a fileira não importa: todos os furos da mesma linha estão ligados. Use qualquer furo livre perto do ponto do desenho."],
+        note: "A trilha + da direita fica com 5 V e só alimenta o sensor ultrassônico. A da esquerda fica com 3,3 V. Nunca una as duas.",
+      },
+      {
+        t: "LEDs (semáforo)",
+        lixeira: "os 3 LEDs aparecem por furinhos na frente da caixinha, para quem passa ver de longe se a lixeira está livre, enchendo ou cheia.",
+        lead: "Três LEDs comuns, de 2 pernas: verde (normal), amarelo (atenção) e vermelho (cheia). Cada um tem um resistor de 300 Ω que vai reto, da fileira do pino até a perna longa do LED.",
+        items: [
+          ...[["verde", "D33", 6, "g"], ["amarelo", "D26", 8, "y"], ["vermelho", "D14", 10, "r"]].flatMap(([cor, pino, k, c]) => [
+            { k: "res", a: L("g", eL + k), b: L("e", eL + k), v: "300", what: `300 Ω de g${eL + k} a e${eL + k} (${pino})` },
+            { k: "led", legs: [L("c", eL + k), L("c", eL + k + 1)], cor: c, what: `LED ${cor}: perna longa em c${eL + k}, curta em c${eL + k + 1}`, where: `esquerda c${eL + k} (longa) e c${eL + k + 1} (curta)` },
+            { k: "wire", a: L("a", eL + k + 1), b: L("-", eL + k + 1), c: "gnd", what: `Perna curta do LED ${cor} → GND` },
+          ]),
+        ],
+        tips: [
+          "Perna longa (+) sempre do lado do resistor; perna curta (−) na fileira de baixo, que vai ao GND.",
+          "Se um LED não acender no teste, ele provavelmente está invertido: é só virar.",
+        ],
+      },
+      {
+        t: "Botão \"esvaziei\"",
+        lixeira: "fica do lado de fora da caixinha. O funcionário aperta depois de esvaziar. A lixeira também percebe sozinha quando o nível cai; o botão confirma.",
+        lead: `O botão fica atravessado sobre a canaleta do meio da protoboard direita, nas fileiras ${btn} e ${btn + 3}.`,
+        items: [
+          { k: "btn", legs: [R("e", btn), R("f", btn), R("e", btn + 3), R("f", btn + 3)], what: "Botão", where: `direita e${btn}, f${btn}, e${btn + 3}, f${btn + 3}` },
+          { k: "wire", a: R("b", btn), b: R("d", eR + 4), c: "v", what: `Fileira ${btn} → D21` },
+          { k: "wire", a: R("j", btn + 3), b: R("-", btn + 3), c: "gnd", what: `Fileira ${btn + 3} → GND` },
+        ],
+        tips: ["As pernas do botão ficam a 3 fileiras uma da outra. Atravessando a canaleta, cada perna fica numa fileira separada.", "Os fios saem de cantos opostos do botão (diagonal). Assim funciona em qualquer posição que o botão encaixar.", "Não coloque as 4 pernas do mesmo lado da canaleta: dependendo do giro, o ESP32 acharia que o botão está sempre apertado."],
+      },
+      {
+        t: "Sensor infravermelho",
+        lixeira: "este modelo (TCRT5000) só enxerga a 1–2 cm. Ele fica colado numa portinhola vai-e-vem da tampa ou numa abertura em fenda, por onde o lixo passa bem perto. Com um sensor FC-51 (até ~30 cm) dá para usar abertura normal, com os mesmos fios.",
+        lead: "Detecta o lixo passando pela abertura. É um TCRT5000 (MH-Sensor-Series) com 4 pinos: VCC, GND, D0 e A0. Fica fora da protoboard, ligado por jumpers macho-fêmea (lado fêmea no sensor).",
+        items: [
+          { k: "ir", what: "Sensor IR TCRT5000 (fora da protoboard)", where: "pinos VCC, GND, D0, A0" },
+          { k: "wire", a: "IR:VCC", b: L("+", eL + 9), c: "3v3", what: "VCC → 3,3 V (trilha + da esquerda)" },
+          { k: "wire", a: "IR:GND", b: L("-", eL + 10), c: "gnd", what: "GND → GND (trilha − da esquerda)" },
+          { k: "wire", a: "IR:D0", b: L("g", eL + 9), c: "y", what: "D0 → D27" },
+        ],
+        tips: [
+          "O pino A0 fica sem fio. Usamos só o D0, que fica em 0 quando o sensor vê algo, como o firmware espera.",
+          "O VCC vai na trilha + da esquerda (3,3 V), nunca na da direita (5 V).",
+          "Ajuste o parafusinho do módulo, se tiver: a luz dele deve ficar apagada sem nada na frente e acender ao aproximar o dedo (1–2 cm). Se ficar sempre acesa, o ultrassônico fica pausado o tempo todo.",
+        ],
+      },
+      {
+        t: "Divisor do ECHO",
+        lixeira: "os resistores ficam na protoboard, dentro da caixinha.",
+        lead: "Três resistores de 1 kΩ transformam os 5 V do ECHO em cerca de 3,3 V, que o ESP32 aguenta. Ficam no lado livre da protoboard direita (colunas f a j).",
+        items: [
+          { k: "res", a: R("g", eR), b: R("g", eR + 3), v: "1k", what: `1 kΩ de g${eR} a g${eR + 3} (em cima)` },
+          { k: "res", a: R("h", eR + 3), b: R("h", eR + 6), v: "1k", what: `1 kΩ de h${eR + 3} a h${eR + 6}` },
+          { k: "res", a: R("i", eR + 6), b: R("-", eR + 6), v: "1k", what: `1 kΩ de i${eR + 6} até a trilha −` },
+          { k: "wire", a: R("f", eR + 3), b: R("e", eR + 6), c: "y", what: `Ponto do meio (fileira ${eR + 3}) → D18` },
+        ],
+        note: "Sem este divisor o ECHO manda 5 V direto no D18 e pode queimar o ESP32. Confira as cores: marrom, preto, vermelho.",
+      },
+      {
+        t: "Sensor ultrassônico",
+        lixeira: "fica embaixo da tampa, no centro, apontado para o fundo e a pelo menos 4 cm acima da borda. Os 4 fios passam por um furo da tampa até a caixinha.",
+        lead: "Só 4 fios (jumpers macho-fêmea, lado fêmea no sensor), cada um direto no destino.",
+        items: [
+          { k: "hc", what: "HC-SR04 (fora da protoboard)", where: "pinos VCC, TRIG, ECHO, GND" },
+          { k: "wire", a: "HC:VCC", b: R("+", eR + 6), c: "5v", what: "VCC → trilha + da direita (5 V)" },
+          { k: "wire", a: "HC:TRIG", b: R("e", eR + 7), c: "b", what: `TRIG → e${eR + 7} (D5)` },
+          { k: "wire", a: "HC:ECHO", b: R("j", eR), c: "y", what: `ECHO → j${eR} (entrada do divisor)` },
+          { k: "wire", a: "HC:GND", b: R("-", eR + 9), c: "gnd", what: "GND → trilha − da direita" },
+        ],
+        note: "O ECHO vai no divisor (fileira do primeiro resistor), nunca direto no ESP32. Na trilha + e − qualquer furo da linha serve.",
+      },
+      {
+        t: "Conferir e ligar",
+        lead: "Antes de conectar o USB, confira estes pontos com o desenho em \"Ver tudo\".",
+        items: [],
+        tips: [
+          "A trilha + da esquerda recebe só o 3V3 (que vem do lado direito). A da direita, só o VIN.",
+          "Nenhum fio liga direto uma trilha + numa trilha −.",
+          "O ECHO passa pelos três resistores de 1 kΩ antes de chegar ao D18.",
+          "Cada LED tem seu resistor de 300 Ω, com a perna longa do lado do resistor.",
+          "Conecte o USB. Se o ESP32 esquentar ou nenhuma luz acender, desconecte na hora e revise a alimentação.",
+          "Depois que eu gravar o firmware, os 3 LEDs piscam ao ligar: verde, amarelo, vermelho. Se algum não acender, ele está invertido.",
+          "Tudo certo? Me avise que eu gravo o firmware e testamos peça por peça.",
+        ],
+      },
+    ];
+  }
+
+  // ---------- Desenho ----------
+  const svg = document.getElementById("bb");
+  const v = n => `var(${n})`;
+
+  function board(b) {
+    const cols = b === "L" ? LCOL : RCOL;
+    const xs = Object.values(cols).map(c => (b === "L" ? OX : RX) + c * P);
+    const x0 = Math.min(...xs) - 0.7 * P, x1 = Math.max(...xs) + 0.7 * P;
+    const y0 = yb(b, 1) - 1.5 * P, y1 = yb(b, ROWS) + 0.8 * P;
+    const tx = b === "L" ? OX + 8 * P : RX + RTRENCH * P;
+    const hole = (x, r) => `<rect x="${x - 2.5}" y="${yb(b, r) - 2.5}" width="5" height="5" rx="1" fill="${v("--hole")}"/>`;
+    let s = `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="6" fill="${v("--board")}" stroke="${v("--board-edge")}"/>`;
+    s += `<rect x="${tx - 0.45 * P}" y="${y0 + 4}" width="${0.9 * P}" height="${y1 - y0 - 8}" fill="${v("--trench")}"/>`;
+    const rails = b === "L" ? [["+", LCOL["+"]], ["-", LCOL["-"]]] : [["+", RCOL.lp], ["-", RCOL.ln], ["-", RCOL["-"]], ["+", RCOL["+"]]];
+    for (const [sig, c] of rails) {
+      const x = (b === "L" ? OX : RX) + c * P;
+      const cor = sig === "+" ? v("--rail-red") : v("--rail-blue");
+      s += `<line x1="${x}" y1="${y0 + 16}" x2="${x}" y2="${y1 - 6}" stroke="${cor}" stroke-width="1" opacity=".55"/>`;
+      s += `<text class="t-lbl" x="${x}" y="${y0 + 11}" text-anchor="middle" style="fill:${cor}">${sig === "-" ? "−" : "+"}</text>`;
+      for (let r = 1; r <= ROWS; r++) if (r % 6) s += hole(x, r);
+    }
+    for (const c of "abcdefghij") {
+      const x = (b === "L" ? OX : RX) + cols[c] * P;
+      s += `<text class="t-lbl" x="${x}" y="${y0 + 11}" text-anchor="middle">${c}</text>`;
+      for (let r = 1; r <= ROWS; r++) s += hole(x, r);
+    }
+    for (let r = 1; r <= ROWS; r++) s += `<text class="t-lbl" x="${tx}" y="${yb(b, r) + 3}" text-anchor="middle" style="font-size:8px">${r}</text>`;
+    s += `<text class="t-lbl" x="${(x0 + x1) / 2}" y="${y1 + 12}" text-anchor="middle">${b === "L" ? "PROTOBOARD ESQUERDA" : "PROTOBOARD DIREITA"}</text>`;
+    return s;
+  }
+
+  function esp32() {
+    const xl = cx("L", "h"), xr = cx("R", "c");
+    const x0 = xl - 0.7 * P, x1 = xr + 0.7 * P, xm = (x0 + x1) / 2;
+    const yp = i => yb("L", eL + i);              // fileira do i-ésimo par de pinos
+    const y0 = yp(0) - 2.6 * P, y1 = yp(NPINS - 1) + 2.6 * P;
+    const mx0 = x0 + 2.9 * P, mx1 = x1 - 2.9 * P;
+    let s = `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="5" fill="#16191d" stroke="#000"/>`;
+    s += `<rect x="${mx0}" y="${y0 + 3}" width="${mx1 - mx0}" height="${1.6 * P}" rx="2" fill="#23272c"/>`;
+    s += `<text class="t-pin" x="${xm}" y="${y0 + 1.15 * P}" text-anchor="middle" style="fill:#8b949e">ANTENA</text>`;
+    s += `<rect x="${mx0}" y="${yp(0)}" width="${mx1 - mx0}" height="${6 * P}" rx="2" fill="#b8bec5"/>`;
+    s += `<text x="${xm}" y="${yp(2.6)}" text-anchor="middle" style="font:700 7px var(--font-mono); fill:#2b3138">ESP-WROOM</text>`;
+    s += `<text x="${xm}" y="${yp(3.4)}" text-anchor="middle" style="font:700 7px var(--font-mono); fill:#2b3138">-32</text>`;
+    s += `<rect x="${xm - 1.1 * P}" y="${yp(9)}" width="${2.2 * P}" height="${2.2 * P}" rx="2" fill="#0d0f11"/>`;
+    [x0 + 1.4 * P, x1 - 1.4 * P].forEach((bx, i) => {
+      s += `<rect x="${bx - 0.5 * P}" y="${yp(NPINS - 1) + 0.9 * P}" width="${P}" height="${P}" rx="1.5" fill="#c9ced3"/>`;
+      s += `<circle cx="${bx}" cy="${yp(NPINS - 1) + 1.4 * P}" r="3" fill="#30363b"/>`;
+      s += `<text class="t-pin" x="${bx + (i ? -0.8 : 0.8) * P}" y="${yp(NPINS - 1) + 1.6 * P}" text-anchor="${i ? "end" : "start"}" style="font-size:7px">${i ? "BOOT" : "EN"}</text>`;
+    });
+    s += `<rect x="${xm - 1 * P}" y="${y1 - 0.6 * P}" width="${2 * P}" height="${1.3 * P}" rx="2" fill="#aab3bc"/>`;
+    for (let i = 0; i < NPINS; i++) {
+      const y = yp(i);
+      s += `<circle class="pin" data-pin="L${i + 1}" cx="${xl}" cy="${y}" r="3.6" fill="#d9b44a"/>`;
+      s += `<text class="t-pin" x="${xl + 0.55 * P}" y="${y + 3.5}" style="font-size:9.5px">${LPINS[i]}</text>`;
+      s += `<circle class="pin" data-pin="R${i + 1}" cx="${xr}" cy="${y}" r="3.6" fill="#d9b44a"/>`;
+      s += `<text class="t-pin" x="${xr - 0.55 * P}" y="${y + 3.5}" text-anchor="end" style="font-size:9.5px">${RPINS[i]}</text>`;
+    }
+    return s;
+  }
+
+  function endDot(x, y, cor) {
+    return `<circle cx="${x}" cy="${y}" r="3" fill="${cor}" stroke="${v("--board")}" stroke-width="1"/>`;
+  }
+
+  function wire(it) {
+    const [x1, y1] = pt(it.a), [x2, y2] = pt(it.b);
+    const cor = v(COR[it.c]);
+    let d;
+    if (it.via) {
+      d = `M${x1},${y1} ` + it.via.map(([x, y]) => `L${x},${y}`).join(" ") + ` L${x2},${y2}`;
+    } else {
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      const bow = Math.min(0.18 * len, 26);
+      const nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
+      d = `M${x1},${y1} Q${mx + nx * bow},${my + ny * bow} ${x2},${y2}`;
+    }
+    return `<path class="glow" d="${d}" fill="none" stroke="transparent" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>` +
+      `<path d="${d}" fill="none" stroke="${cor}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>` +
+      endDot(x1, y1, cor) + endDot(x2, y2, cor);
+  }
+
+  const BANDAS = {
+    "300": ["#e8761a", "#151515", "#7a4a1f", "#c9a227"],
+    "1k": ["#7a4a1f", "#151515", "#d32f2f", "#c9a227"],
+  };
+  function res(it) {
+    const [x1, y1] = pt(it.a), [x2, y2] = pt(it.b);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+    const Lr = 24, Hh = 8.5;
+    let s = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#9aa0a0" stroke-width="1.8"/>`;
+    s += `<g transform="translate(${mx},${my}) rotate(${ang})">`;
+    s += `<rect class="glow" x="${-Lr / 2 - 3}" y="${-Hh / 2 - 3}" width="${Lr + 6}" height="${Hh + 6}" rx="5" fill="none" stroke="transparent" stroke-width="2"/>`;
+    s += `<rect x="${-Lr / 2}" y="${-Hh / 2}" width="${Lr}" height="${Hh}" rx="3.5" fill="#d9c39b" stroke="#a8916a" stroke-width=".8"/>`;
+    BANDAS[it.v].forEach((c, i) => {
+      const bx = -Lr / 2 + 4 + i * 4.5 + (i === 3 ? 3 : 0);
+      s += `<rect x="${bx}" y="${-Hh / 2}" width="2.4" height="${Hh}" fill="${c}"/>`;
+    });
+    s += `</g>`;
+    s += endDot(x1, y1, "#9aa0a0") + endDot(x2, y2, "#9aa0a0");
+    return s;
+  }
+
+  // potenciômetro de painel em pé, visto de cima: disco fino sobre as colunas b–c,
+  // eixo e botão para a direita (no ar, sobre as colunas d a g)
+  function pot(it) {
+    const ps = it.legs.map(pt);
+    const x = ps[0][0], y0 = ps[0][1], y1 = ps[2][1], ym = (y0 + y1) / 2;
+    const meia = 3.15 * P;                       // disco de 16 mm
+    let s = `<rect class="glow" x="${x - 0.75 * P}" y="${ym - meia - 3}" width="${6.3 * P}" height="${2 * meia + 6}" rx="5" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<rect x="${x - 0.45 * P}" y="${ym - meia}" width="${1.5 * P}" height="${2 * meia}" rx="3" fill="#c9a640" fill-opacity=".92" stroke="#8a6d1e"/>`;
+    s += `<rect x="${x + 1.05 * P}" y="${ym - 0.35 * P}" width="${1.6 * P}" height="${0.7 * P}" fill="#9aa0a6" fill-opacity=".9"/>`;
+    s += `<rect x="${x + 2.65 * P}" y="${ym - 0.85 * P}" width="${2.6 * P}" height="${1.7 * P}" rx="3" fill="#1b1d20" fill-opacity=".88"/>`;
+    s += `<rect x="${x + 4.75 * P}" y="${ym - 0.85 * P}" width="${0.5 * P}" height="${1.7 * P}" rx="2" fill="#ff7a1a"/>`;
+    ps.forEach(([px, py]) => s += `<rect x="${px - 3.5}" y="${py - 1.6}" width="7" height="3.2" fill="#e3e6e8" stroke="#6b7177" stroke-width=".6"/>`);
+    return s;
+  }
+
+  function rgb(it) {
+    const ps = it.legs.map(pt);
+    const x = ps[0][0], yc = (ps[1][1] + ps[2][1]) / 2;
+    let s = `<circle class="glow" cx="${x - 0.2 * P}" cy="${yc}" r="${1.5 * P}" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<circle cx="${x - 0.2 * P}" cy="${yc}" r="${1.25 * P}" fill="#f4f6f8" fill-opacity=".85" stroke="#b8c0c8"/>`;
+    const lbl = ["R", "−", "G", "B"];
+    ps.forEach(([px, py], i) => {
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="${i === 1 ? "#5b6470" : "#a7b0b9"}"/>`;
+      s += `<text x="${px - 0.9 * P}" y="${py + 3}" text-anchor="middle" style="font:700 8px var(--font-mono); fill:#3b4450">${lbl[i]}</text>`;
+    });
+    return s;
+  }
+
+  function btn(it) {
+    const ps = it.legs.map(pt);
+    const xa = ps[0][0], xb = ps[1][0], ya = ps[0][1], ybb = ps[2][1];
+    let s = `<rect class="glow" x="${xa - 0.75 * P}" y="${ya - 0.75 * P}" width="${xb - xa + 1.5 * P}" height="${ybb - ya + 1.5 * P}" rx="5" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<rect x="${xa - 0.5 * P}" y="${ya - 0.5 * P}" width="${xb - xa + P}" height="${ybb - ya + P}" rx="3" fill="#30363b" stroke="#15191c"/>`;
+    s += `<circle cx="${(xa + xb) / 2}" cy="${(ya + ybb) / 2}" r="${0.85 * P}" fill="#c0392b"/>`;
+    ps.forEach(([px, py]) => s += `<circle cx="${px}" cy="${py}" r="2.6" fill="#c9ced3"/>`);
+    return s;
+  }
+
+  // TCRT5000 (MH-Sensor-Series): placa azul, bloco preto com os 2 LEDs na ponta, 4 pinos
+  function ir() {
+    const [, yv] = MOD["IR:VCC"], [, ya] = MOD["IR:A0"];
+    const x0 = 0.3 * P, x1 = 5.3 * P, y0 = yv - 1 * P, y1 = ya + 1 * P;
+    let s = `<rect class="glow" x="${x0 - 3}" y="${y0 - 3}" width="${x1 - x0 + 6}" height="${y1 - y0 + 6}" rx="6" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="4" fill="#1f4f8f" stroke="#12335e"/>`;
+    s += `<rect x="${x0 + 0.2 * P}" y="${y0 + 0.6 * P}" width="${1.2 * P}" height="${y1 - y0 - 1.2 * P}" rx="2" fill="#111"/>`;
+    s += `<circle cx="${x0 + 0.8 * P}" cy="${(y0 + y1) / 2 - 0.8 * P}" r="${0.42 * P}" fill="#2b2f33"/>`;
+    s += `<circle cx="${x0 + 0.8 * P}" cy="${(y0 + y1) / 2 + 0.8 * P}" r="${0.42 * P}" fill="#4aa3df"/>`;
+    ["VCC", "GND", "D0", "A0"].forEach(n => {
+      const [px, py] = MOD["IR:" + n];
+      s += `<text class="t-mod" x="${px - 0.45 * P}" y="${py + 3}" text-anchor="end"${n === "A0" ? ' opacity=".55"' : ""}>${n}</text>`;
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="${n === "A0" ? "#8a8f94" : "#d9b44a"}"/>`;
+    });
+    s += `<text class="t-lbl" x="${(x0 + x1) / 2}" y="${y1 + 12}" text-anchor="middle">IR TCRT5000</text>`;
+    return s;
+  }
+
+  function hc() {
+    const [, yv] = MOD["HC:VCC"];
+    const x0 = 43.2 * P, x1 = 50.2 * P, y0 = yv - 2.4 * P, y1 = yv + 5.4 * P;
+    let s = `<rect class="glow" x="${x0 - 3}" y="${y0 - 3}" width="${x1 - x0 + 6}" height="${y1 - y0 + 6}" rx="6" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" rx="4" fill="#1f5f9f" stroke="#123a62"/>`;
+    [y0 + 1.7 * P, y1 - 1.7 * P].forEach(cy => {
+      s += `<circle cx="${x0 + 4.4 * P}" cy="${cy}" r="${1.6 * P}" fill="#c9ced3" stroke="#8a9198"/>`;
+      s += `<circle cx="${x0 + 4.4 * P}" cy="${cy}" r="${0.95 * P}" fill="#40464c"/>`;
+    });
+    ["VCC", "TRIG", "ECHO", "GND"].forEach(n => {
+      const [px, py] = MOD["HC:" + n];
+      s += `<text class="t-mod" x="${px + 0.45 * P}" y="${py + 3}">${n}</text>`;
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="#d9b44a"/>`;
+    });
+    s += `<text class="t-lbl" x="${(x0 + x1) / 2}" y="${y1 + 12}" text-anchor="middle">HC-SR04</text>`;
+    return s;
+  }
+
+  // potenciômetro de painel (eixo com botão), visto de cima, com os 3 terminais virados para a protoboard
+  function potmod() {
+    const [, y1] = MOD["POT:1"], [, y3] = MOD["POT:3"];
+    const xc = 2.4 * P, yc = (y1 + y3) / 2;
+    let s = `<circle class="glow" cx="${xc}" cy="${yc}" r="${2.35 * P}" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<circle cx="${xc}" cy="${yc}" r="${2.1 * P}" fill="#c9a640" stroke="#8a6d1e"/>`;
+    s += `<circle cx="${xc}" cy="${yc}" r="${1.15 * P}" fill="#1b1d20" stroke="#000"/>`;
+    s += `<line x1="${xc}" y1="${yc - 1.1 * P}" x2="${xc}" y2="${yc - 0.35 * P}" stroke="#ff7a1a" stroke-width="2.5"/>`;
+    ["POT:1", "POT:2", "POT:3"].forEach((k, i) => {
+      const [px, py] = MOD[k];
+      s += `<rect x="${xc + 1.6 * P}" y="${py - 2}" width="${px - xc - 1.6 * P}" height="4" fill="#cfd4d8"/>`;
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="#d9b44a"/>`;
+    });
+    s += `<text class="t-lbl" x="${xc}" y="${y3 + 2.9 * P}" text-anchor="middle">POTENCIÔMETRO</text>`;
+    return s;
+  }
+
+  // LED comum de 5 mm, 2 pernas (longa = +, curta = −)
+  const COR_LED = { g: "#2fbf5b", y: "#f2c230", r: "#e5483b" };
+  function led(it) {
+    const ps = it.legs.map(pt);
+    const x = ps[0][0] - 0.25 * P, yc = (ps[0][1] + ps[1][1]) / 2;
+    let s = `<circle class="glow" cx="${x}" cy="${yc}" r="${1.35 * P}" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<circle cx="${x}" cy="${yc}" r="${1.1 * P}" fill="${COR_LED[it.cor]}" fill-opacity=".85" stroke="#00000055"/>`;
+    ps.forEach(([px, py], i) => {
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="#c9ced3" stroke="#5b6470" stroke-width=".6"/>`;
+      s += `<text x="${px + 0.55 * P}" y="${py + 3}" style="font:700 8px var(--font-mono); fill:#3b4450">${i ? "−" : "+"}</text>`;
+    });
+    return s;
+  }
+
+  // TCRT5000 deitado: pinos dobrados na coluna e, placa por cima da canaleta e das colunas f–j
+  function irpcb(it) {
+    const ps = it.legs.map(pt);
+    const x = ps[0][0], y0 = ps[0][1] - 0.6 * P, y1 = ps[3][1] + 0.6 * P;
+    const x1 = x + 5.6 * P;
+    let s = `<rect class="glow" x="${x - 3}" y="${y0 - 3}" width="${x1 - x + 6}" height="${y1 - y0 + 6}" rx="6" fill="none" stroke="transparent" stroke-width="2.5"/>`;
+    s += `<rect x="${x + 0.35 * P}" y="${y0}" width="${x1 - x - 0.35 * P}" height="${y1 - y0}" rx="3" fill="#1f4f8f" fill-opacity=".93" stroke="#12335e"/>`;
+    s += `<rect x="${x1 - 1.5 * P}" y="${y0 + 0.4 * P}" width="${1.2 * P}" height="${y1 - y0 - 0.8 * P}" rx="2" fill="#111"/>`;
+    s += `<circle cx="${x1 - 0.9 * P}" cy="${(y0 + y1) / 2 - 0.75 * P}" r="${0.4 * P}" fill="#2b2f33"/>`;
+    s += `<circle cx="${x1 - 0.9 * P}" cy="${(y0 + y1) / 2 + 0.75 * P}" r="${0.4 * P}" fill="#4aa3df"/>`;
+    ["VCC", "GND", "D0", "A0"].forEach((n, i) => {
+      const [px, py] = ps[i];
+      s += `<line x1="${px}" y1="${py}" x2="${px + 0.6 * P}" y2="${py}" stroke="#c9ced3" stroke-width="2"/>`;
+      s += `<circle cx="${px}" cy="${py}" r="2.6" fill="${n === "A0" ? "#8a8f94" : "#d9b44a"}"/>`;
+      s += `<text class="t-mod" x="${px + 0.75 * P}" y="${py + 3}"${n === "A0" ? ' opacity=".55"' : ""}>${n}</text>`;
+    });
+    return s;
+  }
+
+  const DRAW = { wire, res, pot, potmod, rgb, led, btn, ir, irpcb, hc };
+
+  // pino do ESP32 ligado por um fio (furos livres da fileira do pino)
+  function pinoDe(s) {
+    if (!s || !(s.startsWith("L:") || s.startsWith("R:"))) return null;
+    const [b, c, r] = s.split(":");
+    const n = +r;
+    if (b === "L" && "fg".includes(c) && n >= eL && n < eL + NPINS) return "L" + (n - eL + 1);
+    if (b === "R" && "de".includes(c) && n >= eR && n < eR + NPINS) return "R" + (n - eR + 1);
+    return null;
+  }
+
+  // Recalcula geometria, etapas e desenho a partir da posição do ESP32
+  function construir() {
+    eL = vinRow - 14;
+    eR = v33Row - 14;
+    // as duas protoboards ficam desalinhadas de forma que os pinos do ESP32 fiquem retos
+    const desloc = (eL - eR) * P;                 // OYR - OYL
+    OYL = 3.5 * P + Math.max(0, -desloc);
+    OYR = OYL + desloc;
+    W = 51 * P;
+    H = Math.max(yb("L", ROWS), yb("R", ROWS), yb("L", eL + 14) + 3.3 * P) + 2.6 * P;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    MOD = {
+      "POT:1": [5.3 * P, yb("L", eL + 2)], "POT:2": [5.3 * P, yb("L", eL + 3)], "POT:3": [5.3 * P, yb("L", eL + 4)],
+      "IR:VCC": [5.3 * P, yb("L", eL + 9)], "IR:GND": [5.3 * P, yb("L", eL + 10)], "IR:D0": [5.3 * P, yb("L", eL + 11)], "IR:A0": [5.3 * P, yb("L", eL + 12)],
+      "HC:VCC": [43.2 * P, yb("R", eR + 6)], "HC:TRIG": [43.2 * P, yb("R", eR + 7)], "HC:ECHO": [43.2 * P, yb("R", eR + 8)], "HC:GND": [43.2 * P, yb("R", eR + 9)],
+    };
+    STEPS = montarEtapas();
+    let html = board("L") + board("R") + esp32();
+    STEPS.forEach((st, si) => st.items.forEach((it, ii) => {
+      it.id = `${si}-${ii}`;
+      html += `<g class="it future" data-s="${si}" data-id="${it.id}">${DRAW[it.k](it)}</g>`;
+    }));
+    svg.innerHTML = html;
+  }
+
+  // ---------- Legenda ----------
+  const LEG = [["3v3", "3,3 V"], ["5v", "5 V"], ["gnd", "GND"], ["y", "sinal"]];
+  document.getElementById("legend").innerHTML = LEG
+    .map(([c, n]) => `<span><i class="sw" style="background:${v(COR[c])}"></i>${n}</span>`).join("") +
+    `<span><i class="sw" style="background:#d9c39b"></i>resistor</span>`;
+
+  // ---------- Estado ----------
+  let atual = Math.max(0, +salvo.atual || 0), tudo = false, feitos = salvo.feitos || {};
+  function salvar() { try { localStorage.setItem(KEY, JSON.stringify({ atual, feitos, vin: vinRow, v33: v33Row })); } catch { } }
+
+  const stepsEl = document.getElementById("steps");
+  const card = document.getElementById("card");
+  const inVin = document.getElementById("inVin"), in33 = document.getElementById("in33");
+  inVin.value = vinRow; in33.value = v33Row;
+  function aoMudarPosicao() {
+    const a = parseInt(inVin.value, 10), b = parseInt(in33.value, 10);
+    if (!(a >= 15 && a <= 30 && b >= 15 && b <= 30)) return;   // espera um valor válido
+    vinRow = a; v33Row = b; salvar(); construir(); render();
+  }
+  inVin.addEventListener("input", aoMudarPosicao);
+  in33.addEventListener("input", aoMudarPosicao);
+
+  function render() {
+    atual = Math.min(atual, STEPS.length - 1);
+    svg.querySelectorAll(".it").forEach(g => {
+      const s = +g.dataset.s;
+      g.classList.remove("past", "current", "future", "focus");
+      g.classList.add(tudo ? "current" : s < atual ? "past" : s === atual ? "current" : "future");
+    });
+    svg.classList.remove("focusing");
+    const usados = new Set();
+    STEPS.forEach((st, si) => { if (tudo || si <= atual) st.items.forEach(it => { [it.a, it.b].forEach(p => { const pn = pinoDe(p); if (pn) usados.add(pn); }); }); });
+    svg.querySelectorAll(".pin").forEach(c => c.classList.toggle("used", usados.has(c.dataset.pin)));
+
+    stepsEl.innerHTML = STEPS.map((st, i) =>
+      `<button class="pill${i === atual ? " on" : ""}${feitos[i] ? " ok" : ""}" data-i="${i}" aria-current="${i === atual ? "step" : "false"}"><span class="n">${i}</span>${st.t}</button>`).join("");
+
+    const st = STEPS[atual];
+    const conns = st.items.map(it => {
+      const cor = it.k === "wire" ? v(COR[it.c]) : it.k === "res" ? "#d9c39b" : v("--accent");
+      const where = it.where || (it.a ? `${nome(it.a)} → ${nome(it.b)}` : "");
+      return `<li data-id="${it.id}"><i class="sw" style="background:${cor}"></i><div><div class="what">${it.what}</div><div class="where">${where}</div></div></li>`;
+    }).join("");
+    card.innerHTML = `
+      <div class="tag">Etapa ${atual} de ${STEPS.length - 1}</div>
+      <h2>${st.t}</h2>
+      <p>${st.lead}</p>
+      ${st.lixeira ? `<p class="onde"><b>Na lixeira:</b> ${st.lixeira}</p>` : ""}
+      ${conns ? `<ul class="conns">${conns}</ul>` : ""}
+      ${st.tips ? `<ul class="tips">${st.tips.map(t => `<li>${t}</li>`).join("")}</ul>` : ""}
+      ${st.note ? `<div class="note">${st.note}</div>` : ""}
+      <div class="nav">
+        <label class="done"><input type="checkbox" id="chkFeito" ${feitos[atual] ? "checked" : ""}> Etapa montada</label>
+        <div style="display:flex; gap:8px">
+          <button class="btn" id="btnAnt" ${atual === 0 ? "disabled" : ""}>Anterior</button>
+          <button class="btn primary" id="btnProx" ${atual === STEPS.length - 1 ? "disabled" : ""}>Próxima</button>
+        </div>
+      </div>`;
+
+    card.querySelectorAll(".conns li").forEach(li => {
+      const id = li.dataset.id;
+      const on = () => { svg.classList.add("focusing"); svg.querySelectorAll(".it").forEach(g => g.classList.toggle("focus", g.dataset.id === id)); li.classList.add("focus"); };
+      const off = () => { svg.classList.remove("focusing"); svg.querySelectorAll(".it.focus").forEach(g => g.classList.remove("focus")); li.classList.remove("focus"); };
+      li.addEventListener("mouseenter", on);
+      li.addEventListener("mouseleave", off);
+      li.addEventListener("click", () => li.classList.contains("focus") ? off() : (card.querySelectorAll(".conns li.focus").forEach(x => x.classList.remove("focus")), on()));
+    });
+    document.getElementById("chkFeito").onchange = e => { feitos[atual] = e.target.checked; salvar(); render(); };
+    document.getElementById("btnAnt").onclick = () => irPara(atual - 1);
+    document.getElementById("btnProx").onclick = () => irPara(atual + 1);
+  }
+
+  function irPara(i) { atual = Math.max(0, Math.min(STEPS.length - 1, i)); tudo = false; atualizaTudo(); salvar(); render(); }
+  stepsEl.addEventListener("click", e => { const b = e.target.closest(".pill"); if (b) irPara(+b.dataset.i); });
+
+  const btnTudo = document.getElementById("btnTudo");
+  function atualizaTudo() { btnTudo.setAttribute("aria-pressed", String(tudo)); btnTudo.textContent = tudo ? "Ver etapa" : "Ver tudo"; }
+  btnTudo.onclick = () => { tudo = !tudo; atualizaTudo(); render(); };
+
+  const btnZoom = document.getElementById("btnZoom");
+  btnZoom.onclick = () => {
+    const z = document.getElementById("scroll").classList.toggle("zoom");
+    btnZoom.setAttribute("aria-pressed", String(z));
+    btnZoom.textContent = z ? "Reduzir" : "Ampliar";
+  };
+
+  document.addEventListener("keydown", e => {
+    if (e.target.closest("input, textarea")) return;
+    if (e.key === "ArrowRight") irPara(atual + 1);
+    if (e.key === "ArrowLeft") irPara(atual - 1);
+  });
+
+  construir();
+  render();
+
+  // usado na verificação automática do guia (conflitos de furos em todas as posições)
+  window.ecobinGuia = {
+    etapas: () => STEPS,
+    posicao: () => ({ eL, eR }),
+    definir: (vin, v33) => { vinRow = vin; v33Row = v33; construir(); render(); },
+  };
+})();
+</script>

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EcoBin Painel</title>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f3; --card: #ffffff; --text: #1d2621; --muted: #66726b; --border: #dfe5e0;
+    --ok: #2e9d5b; --warn: #d39400; --bad: #d64545; --accent: #2e7d5b; --sel: #eaf4ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121815; --card: #1b231f; --text: #e6ece8; --muted: #93a29a; --border: #2c3731;
+      --ok: #4cc27c; --warn: #f0b429; --bad: #ef6b6b; --accent: #4cc27c; --sel: #22302a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--card); flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 20px; }
+  h1 span { color: var(--accent); }
+  .head-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+          border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .pill.on { color: var(--ok); border-color: var(--ok); }
+  .pill.off { color: var(--bad); border-color: var(--bad); }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px; display: grid; gap: 16px;
+         grid-template-columns: repeat(12, 1fr); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--muted);
+             text-transform: uppercase; letter-spacing: .04em; }
+  .c12 { grid-column: span 12; } .c4 { grid-column: span 4; } .c3 { grid-column: span 3; }
+  .c8 { grid-column: span 8; } .c6 { grid-column: span 6; }
+  @media (max-width: 900px) { .c4, .c3, .c8, .c6 { grid-column: span 12; } }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+  .stat .v { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat .l { color: var(--muted); font-size: 13px; }
+
+  /* Fila de coleta */
+  .fila { display: grid; gap: 6px; }
+  .row { display: grid; grid-template-columns: 1.6fr 2fr .9fr 1.1fr .8fr .8fr; gap: 12px; align-items: center;
+         padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; }
+  .row:hover { border-color: var(--border); }
+  .row.sel { background: var(--sel); border-color: var(--accent); }
+  .row.head { cursor: default; color: var(--muted); font-size: 12px; text-transform: uppercase;
+              letter-spacing: .04em; padding-top: 0; padding-bottom: 0; }
+  .row.head:hover { border-color: transparent; }
+  .row .id { font-weight: 700; }
+  .row .loc { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar { display: flex; align-items: center; gap: 8px; }
+  .track { flex: 1; height: 10px; border-radius: 99px; background: var(--border); overflow: hidden; position: relative; }
+  .track i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; transition: width .5s; }
+  .track b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .5; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 40px; text-align: right; }
+  .chip { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; border: 1px solid; justify-self: start; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  @media (max-width: 700px) {
+    .row { grid-template-columns: 1fr 1fr; }
+    .row.head { display: none; }
+  }
+
+  /* Detalhe */
+  .bin { display: flex; gap: 16px; align-items: flex-end; }
+  .tank { width: 70px; height: 140px; border: 3px solid var(--text); border-top-width: 6px;
+          border-radius: 4px 4px 10px 10px; position: relative; overflow: hidden; flex: none; }
+  .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0%; background: var(--ok);
+          transition: height .5s, background .5s; }
+  .limline { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--text); opacity: .6; }
+  .big { font-size: 44px; font-weight: 700; line-height: 1; }
+  .estado { font-weight: 700; margin-top: 6px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  button { font: inherit; font-weight: 600; padding: 9px 14px; border-radius: 8px; cursor: pointer;
+           border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .full { width: 100%; }
+  .slider { display: flex; gap: 10px; align-items: center; margin: 14px 0 8px; }
+  .slider input { flex: 1; accent-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .chart-box { position: relative; height: 260px; }
+  ul.log { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+  ul.log li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  ul.log time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Eco<span>Bin</span> · Painel de Coleta</h1>
+  <div class="head-right">
+    <button id="btnNotif" class="ghost">Ativar notificações</button>
+    <span id="broker" class="pill">Broker: conectando…</span>
+  </div>
+</header>
+
+<main>
+  <section class="card c12">
+    <div class="stats">
+      <div class="stat"><div class="v" id="sOnline">0/0</div><div class="l">lixeiras online</div></div>
+      <div class="stat"><div class="v" id="sCheias">0</div><div class="l">cheias agora</div></div>
+      <div class="stat"><div class="v" id="sProx">—</div><div class="l">próxima a encher</div></div>
+      <div class="stat"><div class="v" id="sMedia">—</div><div class="l">nível médio</div></div>
+      <div class="stat"><div class="v" id="sDesc">0</div><div class="l">descartes desde as coletas</div></div>
+    </div>
+  </section>
+
+  <section class="card c12">
+    <h2>Fila de coleta (prioridade)</h2>
+    <div class="fila" id="fila">
+      <div class="row head"><span>Lixeira</span><span>Nível</span><span>Estado</span><span>Enche em</span><span>Descartes</span><span>Status</span></div>
+    </div>
+    <p class="empty" id="filaVazia">Aguardando lixeiras… rode o Wokwi e/ou o simulador.</p>
+  </section>
+
+  <section class="card c4">
+    <h2 id="dTitulo">Lixeira</h2>
+    <div class="bin">
+      <div class="tank"><div id="fill" class="fill"></div><div id="limline" class="limline"></div></div>
+      <div>
+        <div class="big"><span id="dNivel">--</span>%</div>
+        <div id="dEstado" class="estado">—</div>
+        <div id="dLocal" class="sub"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card c4">
+    <h2>Leituras e previsão</h2>
+    <dl class="kv">
+      <dt>Distância</dt><dd id="dDist">--</dd>
+      <dt>Limiar de cheia</dt><dd id="dLimiar">--</dd>
+      <dt>Descartes</dt><dd id="dDesc">--</dd>
+      <dt>Velocidade</dt><dd id="dVel">--</dd>
+      <dt>Enche em</dt><dd id="dEta">--</dd>
+      <dt>Latência</dt><dd id="dLat">--</dd>
+      <dt>Última leitura</dt><dd id="dUlt">--</dd>
+    </dl>
+  </section>
+
+  <section class="card c4">
+    <h2>Gestão</h2>
+    <button id="btnReset" class="full" disabled>Marcar como esvaziada</button>
+    <div class="slider">
+      <span>Limiar</span>
+      <input id="slLimiar" type="range" min="50" max="95" step="1" value="80" disabled>
+      <span class="num" id="slVal">80%</span>
+    </div>
+    <button id="btnLimiar" class="full ghost" disabled>Aplicar limiar</button>
+    <p class="hint">Os comandos vão para <code>…/cmd</code> da lixeira selecionada.</p>
+  </section>
+
+  <section class="card c8">
+    <h2>Nível ao longo do tempo</h2>
+    <div class="chart-box"><canvas id="chart"></canvas></div>
+  </section>
+
+  <section class="card c4">
+    <h2>Histórico de coletas</h2>
+    <table>
+      <thead><tr><th>Quando</th><th class="n">Nível</th><th class="n">Descartes</th></tr></thead>
+      <tbody id="coletas"></tbody>
+    </table>
+    <p class="empty" id="coletasVazia">Nenhuma coleta registrada.</p>
+  </section>
+
+  <section class="card c6">
+    <h2>Eventos</h2>
+    <ul id="log" class="log"></ul>
+  </section>
+
+  <section class="card c6">
+    <h2>Diagnóstico do firmware</h2>
+    <div id="diag"><p class="empty">Publicado pelo ESP32 a cada 30 s (memória livre e folga de stack de cada task).</p></div>
+  </section>
+</main>
+
+<script>
+  const PREFIXO = "ecobin/cesar-g7k2";
+  const BROKER = "wss://broker.hivemq.com:8884/mqtt";
+  const STORE_KEY = "ecobin-painel-v2";
+  const HIST_MAX = 400;              // pontos guardados por lixeira
+  const JANELA_MS = 30 * 60 * 1000;  // janela usada na previsão
+  const MIN_JANELA_MS = 30 * 1000;   // tempo mínimo de dados para começar a prever
+  const VEL_MIN = 0.5;               // %/h abaixo disso a lixeira é considerada estável
+
+  const $ = id => document.getElementById(id);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const COR = { NORMAL: "--ok", ATENCAO: "--warn", CHEIA: "--bad" };
+  const NOME = { NORMAL: "Normal", ATENCAO: "Atenção", CHEIA: "Cheia" };
+  const hora = t => new Date(t).toLocaleTimeString("pt-BR");
+
+  function el(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") e.className = v;
+      else if (k === "style") e.style.cssText = v;
+      else e.setAttribute(k, v);
+    }
+    for (const k of kids) e.append(k ?? "");
+    return e;
+  }
+
+  // ---------- Validação ----------
+  // O broker é público: qualquer um pode publicar nos tópicos, então nada é usado sem checar.
+  const ID_OK = /^[A-Za-z0-9_-]{1,20}$/;
+  const ESTADOS = new Set(["NORMAL", "ATENCAO", "CHEIA"]);
+  const num = (x, min, max) => typeof x === "number" && isFinite(x) ? Math.min(max, Math.max(min, x)) : null;
+  const inteiro = (x, min, max) => { const v = num(x, min, max); return v == null ? null : Math.round(v); };
+
+  // ---------- Estado ----------
+  const bins = Object.create(null);   // sem protótipo: um id "__proto__" não corrompe o objeto
+  let eventos = [];
+  let selecionada = null;
+  let escolhaManual = false;
+
+  function getBin(id) {
+    return bins[id] ??= { id, local: "", nivel: null, dist: null, estado: null, limiar: null, sensorOk: true,
+      descartes: 0, online: false, ultima: null, lat: null, hist: [], coletas: [], desdeColeta: 0, diag: null };
+  }
+
+  // Persistência local (histórico sobrevive ao F5; o banco de dados de verdade vem com o backend)
+  function carregar() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (!s) return;
+      for (const b of s.bins || []) if (ID_OK.test(b.id)) Object.assign(getBin(b.id), b, { online: false });
+      eventos = s.eventos || [];
+    } catch { /* sem armazenamento: segue só em memória */ }
+  }
+  let salvarTimer = null;
+  function salvar() {
+    clearTimeout(salvarTimer);
+    salvarTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+          bins: Object.values(bins).map(({ id, local, nivel, estado, limiar, descartes, hist, coletas, desdeColeta }) =>
+            ({ id, local, nivel, estado, limiar, descartes, hist, coletas, desdeColeta })),
+          eventos: eventos.slice(0, 100)
+        }));
+      } catch { }
+    }, 1500);
+  }
+
+  // ---------- Previsão: regressão linear do nível (%) pelo tempo (h) ----------
+  function velocidade(b) {
+    const desde = Math.max(b.desdeColeta, Date.now() - JANELA_MS);
+    const pts = b.hist.filter(p => p.t >= desde);
+    // poucos pontos ou janela curta demais dão previsões malucas
+    if (pts.length < 8 || pts[pts.length - 1].t - pts[0].t < MIN_JANELA_MS) return null;
+    const t0 = pts[0].t;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const p of pts) {
+      const x = (p.t - t0) / 3.6e6, y = p.n;
+      sx += x; sy += y; sxx += x * x; sxy += x * y;
+    }
+    const n = pts.length, den = n * sxx - sx * sx;
+    if (den <= 0) return null;
+    return (n * sxy - sx * sy) / den;   // % por hora
+  }
+
+  function eta(b) {
+    if (b.nivel == null || b.limiar == null) return { txt: "—", min: Infinity };
+    if (!b.online) return { txt: "offline", min: Infinity };
+    if (!b.sensorOk) return { txt: "sem sensor", min: Infinity };
+    if (b.estado === "CHEIA") return { txt: "cheia", min: -1 };
+    const v = velocidade(b);
+    if (v == null) return { txt: "calculando…", min: Infinity };
+    if (v < VEL_MIN) return { txt: "estável", min: Infinity };
+    const min = (b.limiar - b.nivel) / v * 60;
+    return { txt: fmtMin(min), min };
+  }
+
+  function fmtMin(min) {
+    if (min < 1) return "< 1 min";
+    if (min < 60) return `~${Math.round(min)} min`;
+    const h = Math.floor(min / 60), m = Math.round(min % 60);
+    return h >= 48 ? `~${Math.round(h / 24)} dias` : `~${h}h${String(m).padStart(2, "0")}`;
+  }
+
+  // ---------- Eventos e notificações ----------
+  function logEvento(texto, t = Date.now()) {
+    eventos.unshift({ t, texto });
+    eventos = eventos.slice(0, 100);
+    renderEventos();
+    salvar();
+  }
+
+  function notificar(titulo, corpo) {
+    try {
+      if ("Notification" in window && Notification.permission === "granted") new Notification(titulo, { body: corpo });
+    } catch { }
+  }
+
+  $("btnNotif").onclick = async () => {
+    try { await Notification.requestPermission(); } catch { }
+    atualizarBotaoNotif();
+  };
+  function atualizarBotaoNotif() {
+    const ok = "Notification" in window && Notification.permission === "granted";
+    $("btnNotif").textContent = ok ? "Notificações ativas" : "Ativar notificações";
+    $("btnNotif").disabled = ok;
+  }
+
+  // ---------- Renderização ----------
+  function corEstado(e) { return css(COR[e] || "--muted"); }
+
+  function ordenadas() {
+    return Object.values(bins).sort((a, b) => {
+      const ea = eta(a).min, eb = eta(b).min;
+      if (ea !== eb) return ea - eb;              // cheias (-1) primeiro, depois a que enche antes
+      return (b.nivel ?? -1) - (a.nivel ?? -1);
+    });
+  }
+
+  function renderResumo() {
+    const lista = Object.values(bins);
+    const comNivel = lista.filter(b => b.nivel != null);
+    $("sOnline").textContent = `${lista.filter(b => b.online).length}/${lista.length}`;
+    $("sCheias").textContent = lista.filter(b => b.estado === "CHEIA").length;
+    $("sCheias").style.color = lista.some(b => b.estado === "CHEIA") ? css("--bad") : "";
+    $("sMedia").textContent = comNivel.length
+      ? Math.round(comNivel.reduce((s, b) => s + b.nivel, 0) / comNivel.length) + "%" : "—";
+    $("sDesc").textContent = lista.reduce((s, b) => s + (b.descartes || 0), 0);
+    const prox = lista.map(b => ({ b, e: eta(b) })).filter(x => x.e.min >= 0 && isFinite(x.e.min))
+      .sort((x, y) => x.e.min - y.e.min)[0];
+    $("sProx").textContent = prox ? `${prox.b.id} ${prox.e.txt}` : "—";
+  }
+
+  function renderFila() {
+    const fila = $("fila");
+    fila.querySelectorAll(".row:not(.head)").forEach(r => r.remove());
+    const lista = ordenadas();
+    $("filaVazia").style.display = lista.length ? "none" : "";
+    for (const b of lista) {
+      const cor = corEstado(b.estado);
+      const fill = el("i", { style: `width:${b.nivel ?? 0}%;background:${cor}` });
+      const mark = el("b", { style: `left:${b.limiar ?? 80}%` });
+      const row = el("div", { class: "row" + (b.id === selecionada ? " sel" : "") },
+        el("div", {}, el("div", { class: "id" }, b.id), el("div", { class: "loc" }, b.local || "—")),
+        el("div", { class: "bar" }, el("div", { class: "track" }, fill, mark),
+          el("span", { class: "num" }, b.nivel != null ? b.nivel + "%" : "--")),
+        !b.sensorOk ? el("span", { class: "chip", style: `color:${css("--bad")};border-color:${css("--bad")}` }, "Sensor")
+          : b.estado ? el("span", { class: "chip", style: `color:${cor};border-color:${cor}` }, NOME[b.estado])
+          : el("span", { class: "loc" }, "sem dados"),
+        el("span", {}, eta(b).txt),
+        el("span", { class: "num", style: "text-align:left" }, b.descartes ?? 0),
+        el("span", {}, el("span", { class: "dot", style: `background:${css(b.online ? "--ok" : "--bad")}` }),
+          b.online ? "online" : "offline"));
+      row.onclick = () => { selecionada = b.id; escolhaManual = true; render(); syncSlider(); };
+      fila.append(row);
+    }
+  }
+
+  function renderDetalhe() {
+    const b = bins[selecionada];
+    const on = !!(b && b.online && client.connected);
+    $("btnReset").disabled = !on;
+    $("btnLimiar").disabled = !on;
+    $("slLimiar").disabled = !on;
+    if (!b) return;
+    const cor = corEstado(b.estado);
+    $("dTitulo").textContent = `Lixeira ${b.id}`;
+    $("dLocal").textContent = b.local || "";
+    $("dNivel").textContent = b.nivel ?? "--";
+    $("fill").style.height = (b.nivel ?? 0) + "%";
+    $("fill").style.background = cor;
+    $("limline").style.bottom = (b.limiar ?? 80) + "%";
+    $("dEstado").textContent = (b.sensorOk ? NOME[b.estado] || "—" : "Falha no sensor") + (b.online ? "" : " · offline");
+    $("dEstado").style.color = cor;
+    $("dDist").textContent = b.dist != null ? b.dist.toFixed(1) + " cm" : "--";
+    $("dLimiar").textContent = b.limiar != null ? b.limiar + "%" : "--";
+    $("dDesc").textContent = b.descartes ?? 0;
+    const v = velocidade(b);
+    $("dVel").textContent = v == null ? "calculando…" : `${v.toFixed(1)} %/h`;
+    $("dEta").textContent = eta(b).txt;
+    $("dLat").textContent = b.lat != null ? `${b.lat} ms` : "--";
+    $("dUlt").textContent = b.ultima ? hora(b.ultima) : "--";
+
+    const corpo = $("coletas");
+    corpo.replaceChildren(...b.coletas.slice(0, 10).map(c =>
+      el("tr", {}, el("td", {}, new Date(c.t).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })),
+        el("td", { class: "n" }, c.nivel + "%"), el("td", { class: "n" }, c.descartes))));
+    $("coletasVazia").style.display = b.coletas.length ? "none" : "";
+
+    const diag = $("diag");
+    if (b.diag) {
+      const linhas = Object.entries(b.diag.stack || {}).map(([k, v]) =>
+        el("tr", {}, el("td", {}, k), el("td", { class: "n" }, v + " B")));
+      diag.replaceChildren(
+        el("dl", { class: "kv", style: "margin-bottom:10px" },
+          el("dt", {}, "Heap livre"), el("dd", {}, (b.diag.heap / 1024).toFixed(1) + " KB"),
+          el("dt", {}, "Atualizado"), el("dd", {}, hora(b.diag.t))),
+        el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "Task"), el("th", { class: "n" }, "Stack livre (mín.)"))),
+          el("tbody", {}, ...linhas)));
+    } else {
+      diag.replaceChildren(el("p", { class: "empty" },
+        b.id === "lx01" ? "Aguardando o primeiro diagnóstico (a cada 30 s)…"
+                        : "Disponível apenas para a lixeira com ESP32 (lx01)."));
+    }
+    renderChart(b);
+  }
+
+  const chart = new Chart($("chart"), {
+    type: "line",
+    data: { labels: [], datasets: [
+      { label: "Nível (%)", data: [], borderColor: css("--accent"), tension: .3, pointRadius: 0, fill: false },
+      { label: "Limiar (%)", data: [], borderColor: css("--bad"), borderDash: [6, 4], pointRadius: 0, fill: false }
+    ]},
+    options: {
+      animation: false, maintainAspectRatio: false,
+      scales: { y: { min: 0, max: 100, ticks: { color: css("--muted") }, grid: { color: css("--border") } },
+                x: { ticks: { color: css("--muted"), maxTicksLimit: 8 }, grid: { display: false } } },
+      plugins: { legend: { labels: { color: css("--text") } } }
+    }
+  });
+
+  function renderChart(b) {
+    const pts = b.hist.slice(-150);
+    chart.data.labels = pts.map(p => hora(p.t));
+    chart.data.datasets[0].data = pts.map(p => p.n);
+    chart.data.datasets[1].data = pts.map(p => p.l);
+    chart.update();
+  }
+
+  function renderEventos() {
+    $("log").replaceChildren(...eventos.slice(0, 60).map(e =>
+      el("li", {}, el("time", {}, hora(e.t)), e.texto)));
+  }
+
+  let agendado = false;
+  function render() {
+    if (agendado) return;
+    agendado = true;
+    requestAnimationFrame(() => {
+      agendado = false;
+      renderResumo(); renderFila(); renderDetalhe();
+    });
+  }
+
+  function syncSlider() {
+    const b = bins[selecionada];
+    if (b && b.limiar != null) { $("slLimiar").value = b.limiar; $("slVal").textContent = b.limiar + "%"; }
+  }
+  $("slLimiar").oninput = e => $("slVal").textContent = e.target.value + "%";
+
+  // ---------- MQTT ----------
+  carregar();
+  renderEventos();
+  atualizarBotaoNotif();
+
+  const client = mqtt.connect(BROKER, { clientId: "ecobin-web-" + Math.random().toString(16).slice(2, 10) });
+
+  client.on("connect", () => {
+    $("broker").textContent = "Broker: conectado";
+    $("broker").className = "pill on";
+    client.subscribe(`${PREFIXO}/+/+`);
+    render();
+  });
+  client.on("close", () => {
+    $("broker").textContent = "Broker: desconectado";
+    $("broker").className = "pill off";
+    render();
+  });
+
+  client.on("message", (topic, buf, packet) => {
+    const partes = topic.split("/");
+    if (partes.length !== 4) return;
+    const [, , id, sub] = partes;
+    if (sub === "cmd" || !ID_OK.test(id)) return;
+    const b = getBin(id);
+    // seleciona automaticamente a primeira lixeira com dados, até o usuário escolher outra
+    if (!selecionada || (!escolhaManual && bins[selecionada].nivel == null && sub === "nivel")) selecionada = id;
+    const txt = buf.toString();
+
+    if (sub === "status") {
+      const on = txt === "online";
+      // status retido só informa o estado atual ao abrir o painel; não é uma mudança
+      if (on !== b.online && !packet.retain) logEvento(`${id} ficou ${on ? "online" : "offline"}`);
+      b.online = on;
+      render();
+      return;
+    }
+
+    let d;
+    try { d = JSON.parse(txt); } catch { return; }
+    if (!d || typeof d !== "object") return;
+    const agora = Date.now();
+    const onde = b.local ? " · " + b.local : "";
+
+    if (sub === "nivel") {
+      const nivel = inteiro(d.nivel_pct, 0, 100), limiar = inteiro(d.limiar, 0, 100);
+      if (nivel == null || limiar == null || !ESTADOS.has(d.estado)) return;
+      const sensorOk = d.sensor_ok !== false;
+      Object.assign(b, { nivel, limiar, sensorOk, estado: d.estado, dist: num(d.dist_cm, 0, 500), ultima: agora });
+      const ts = num(d.ts, 0, Infinity);
+      b.lat = ts > 0 && agora - ts >= 0 && agora - ts < 60000 ? agora - ts : null;
+      // retida = último valor guardado pelo broker (pode ser antigo); sem sensor = valor parado.
+      // Nenhum dos dois entra no histórico, senão distorcem a previsão.
+      if (!packet.retain && sensorOk) {
+        b.hist.push({ t: agora, n: nivel, l: limiar });
+        if (b.hist.length > HIST_MAX) b.hist.splice(0, b.hist.length - HIST_MAX);
+      }
+      if (id === selecionada && document.activeElement !== $("slLimiar")) syncSlider();
+      salvar();
+    } else if (sub === "info") {
+      b.local = typeof d.local === "string" ? d.local.slice(0, 60) : "";
+    } else if (sub === "descartes") {
+      b.descartes = inteiro(d.total, 0, 1e9) ?? 0;
+    } else if (sub === "alerta") {
+      const nivel = inteiro(d.nivel_pct, 0, 100) ?? "?";
+      logEvento(`⚠️ ${id} CHEIA (${nivel}%)${onde}`);
+      notificar("EcoBin: lixeira cheia", `${id} está com ${nivel}%${onde}`);
+    } else if (sub === "evento" && d.tipo === "ESVAZIADA") {
+      const nivel = inteiro(d.nivel_antes, 0, 100) ?? 0, descartes = inteiro(d.descartes, 0, 1e9) ?? 0;
+      const ORIGEM = { botao: "botão", painel: "painel", automatica: "detectada automaticamente" };
+      const origem = ORIGEM[d.origem] || "";
+      b.coletas.unshift({ t: agora, nivel, descartes });
+      b.coletas = b.coletas.slice(0, 50);
+      b.desdeColeta = agora;
+      logEvento(`✅ ${id} esvaziada (estava em ${nivel}%, ${descartes} descartes${origem ? ", " + origem : ""})`);
+    } else if (sub === "diag") {
+      const stack = {};
+      for (const [k, v] of Object.entries(d.stack || {})) {
+        const bytes = inteiro(v, 0, 1e6);
+        if (bytes != null && ID_OK.test(k)) stack[k] = bytes;
+      }
+      b.diag = { heap: inteiro(d.heap, 0, 1e9) ?? 0, stack, t: agora };
+    }
+    render();
+  });
+
+  function enviarCmd(obj) {
+    if (!selecionada) return;
+    client.publish(`${PREFIXO}/${selecionada}/cmd`, JSON.stringify(obj), { qos: 1 });
+  }
+  $("btnReset").onclick = () => { enviarCmd({ acao: "reset" }); logEvento(`Reset enviado para ${selecionada}`); };
+  $("btnLimiar").onclick = () => {
+    const v = Number($("slLimiar").value);
+    enviarCmd({ limiar: v });
+    logEvento(`Limiar de ${selecionada} ajustado para ${v}%`);
+  };
+
+  // Atualiza previsões mesmo sem mensagens novas
+  setInterval(render, 5000);
+</script>
+</body>
+</html>

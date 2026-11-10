@@ -1,0 +1,7 @@
+# Simulacao no VS Code com a extensao "Wokwi Simulator".
+# 1) Compilar o ambiente wokwi:  pio run -e wokwi
+# 2) F1 > "Wokwi: Start Simulator"  (usa o diagram.json desta pasta)
+[wokwi]
+version = 1
+firmware = '.pio/build/wokwi/firmware.bin'
+elf = '.pio/build/wokwi/firmware.elf'

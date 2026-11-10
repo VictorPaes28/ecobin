@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "author": "EcoBin",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "ultra",
+      "top": -170,
+      "left": 110,
+      "attrs": {
+        "distance": "35"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnEsvaziar",
+      "top": 70,
+      "left": 210,
+      "attrs": {
+        "color": "red",
+        "key": "e"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnIR",
+      "top": 190,
+      "left": -190,
+      "attrs": {
+        "color": "blue",
+        "key": "i"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledVerde",
+      "top": -30,
+      "left": -250,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledAmarelo",
+      "top": 30,
+      "left": -250,
+      "attrs": {
+        "color": "yellow"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledVermelho",
+      "top": 90,
+      "left": -250,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rVerde",
+      "top": 0,
+      "left": -160,
+      "attrs": {
+        "value": "300"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rAmarelo",
+      "top": 60,
+      "left": -160,
+      "attrs": {
+        "value": "300"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rVermelho",
+      "top": 120,
+      "left": -160,
+      "attrs": {
+        "value": "300"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "ultra:VCC",
+      "esp:5V",
+      "red",
+      []
+    ],
+    [
+      "ultra:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "ultra:TRIG",
+      "esp:5",
+      "orange",
+      []
+    ],
+    [
+      "ultra:ECHO",
+      "esp:18",
+      "yellow",
+      []
+    ],
+    [
+      "btnEsvaziar:1.l",
+      "esp:21",
+      "violet",
+      []
+    ],
+    [
+      "btnEsvaziar:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "btnIR:1.r",
+      "esp:27",
+      "blue",
+      []
+    ],
+    [
+      "btnIR:2.r",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:33",
+      "rVerde:2",
+      "green",
+      []
+    ],
+    [
+      "rVerde:1",
+      "ledVerde:A",
+      "green",
+      []
+    ],
+    [
+      "ledVerde:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:26",
+      "rAmarelo:2",
+      "gold",
+      []
+    ],
+    [
+      "rAmarelo:1",
+      "ledAmarelo:A",
+      "gold",
+      []
+    ],
+    [
+      "ledAmarelo:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:14",
+      "rVermelho:2",
+      "red",
+      []
+    ],
+    [
+      "rVermelho:1",
+      "ledVermelho:A",
+      "red",
+      []
+    ],
+    [
+      "ledVermelho:C",
+      "esp:GND.1",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
