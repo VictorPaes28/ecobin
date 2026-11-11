@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#E85D04"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8A8A8A"/>
+    </marker>
+    <marker id="k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="760" fill="#FFFFFF"/>
+
+  <!-- Lixeira lx01 -->
+  <rect x="40" y="60" width="400" height="400" rx="14" fill="#FFF3EA" stroke="#E85D04" stroke-width="2"/>
+  <text x="60" y="95" font-size="20" font-weight="700" fill="#222">Lixeira EcoBin · lx01</text>
+  <text x="60" y="118" font-size="14" fill="#555">ESP32 físico ou simulado no Wokwi</text>
+
+  <g font-size="14" fill="#222">
+    <rect x="60" y="145" width="170" height="44" rx="8" fill="#fff" stroke="#999"/>
+    <text x="145" y="164" text-anchor="middle" font-weight="600">HC-SR04</text>
+    <text x="145" y="181" text-anchor="middle" fill="#555" font-size="12">nível (distância)</text>
+    <rect x="60" y="205" width="170" height="44" rx="8" fill="#fff" stroke="#999"/>
+    <text x="145" y="224" text-anchor="middle" font-weight="600">Sensor IR</text>
+    <text x="145" y="241" text-anchor="middle" fill="#555" font-size="12">descartes</text>
+    <rect x="60" y="265" width="170" height="44" rx="8" fill="#fff" stroke="#999"/>
+    <text x="145" y="284" text-anchor="middle" font-weight="600">Botão</text>
+    <text x="145" y="301" text-anchor="middle" fill="#555" font-size="12">lixeira esvaziada</text>
+  </g>
+  <g stroke="#444" stroke-width="1.6" marker-end="url(#k)">
+    <line x1="230" y1="167" x2="268" y2="167"/>
+    <line x1="230" y1="227" x2="268" y2="227"/>
+    <line x1="230" y1="287" x2="268" y2="287"/>
+  </g>
+  <rect x="270" y="145" width="150" height="164" rx="10" fill="#222" />
+  <text x="345" y="210" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">ESP32</text>
+  <text x="345" y="234" text-anchor="middle" font-size="13" fill="#ddd">FreeRTOS</text>
+  <text x="345" y="252" text-anchor="middle" font-size="13" fill="#ddd">6 tarefas</text>
+
+  <line x1="345" y1="309" x2="345" y2="348" stroke="#444" stroke-width="1.6" marker-end="url(#k)"/>
+  <rect x="270" y="350" width="150" height="54" rx="8" fill="#fff" stroke="#999"/>
+  <circle cx="303" cy="377" r="8" fill="#2E9E4F"/><circle cx="327" cy="377" r="8" fill="#E8B10C"/><circle cx="351" cy="377" r="8" fill="#D62828"/>
+  <text x="365" y="382" font-size="13" fill="#222">LEDs</text>
+  <text x="60" y="380" font-size="13" fill="#555">Sensores → ESP32</text>
+  <text x="60" y="398" font-size="13" fill="#555">ESP32 → LEDs (estado)</text>
+
+  <!-- Simulador -->
+  <rect x="40" y="520" width="400" height="90" rx="14" fill="#fff" stroke="#999" stroke-width="1.6"/>
+  <text x="60" y="556" font-size="18" font-weight="700" fill="#222">Simulador Python</text>
+  <text x="60" y="582" font-size="14" fill="#555">lixeiras virtuais lx02, lx03, lx04 (paho-mqtt)</text>
+
+  <!-- Broker -->
+  <rect x="680" y="190" width="320" height="220" rx="14" fill="#fff" stroke="#222" stroke-width="2.2"/>
+  <text x="840" y="232" text-anchor="middle" font-size="22" font-weight="700" fill="#222">Broker MQTT</text>
+  <text x="840" y="268" text-anchor="middle" font-size="14" fill="#222">Hoje: broker.hivemq.com (público)</text>
+  <text x="840" y="292" text-anchor="middle" font-size="14" fill="#222">Entrega: Mosquitto local</text>
+  <line x1="710" y1="312" x2="970" y2="312" stroke="#ddd"/>
+  <text x="840" y="338" text-anchor="middle" font-size="13" fill="#555">tópicos:</text>
+  <text x="840" y="358" text-anchor="middle" font-size="13" fill="#555" font-family="Consolas, monospace">ecobin/cesar-g7k2/&lt;id&gt;/…</text>
+
+  <!-- ESP32 <-> broker -->
+  <text x="550" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#222">Wi-Fi · MQTT (TCP 1883)</text>
+  <line x1="420" y1="228" x2="678" y2="228" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="550" y="220" text-anchor="middle" font-size="12" fill="#555">nivel · alerta · evento · status</text>
+  <line x1="678" y1="268" x2="422" y2="268" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="550" y="288" text-anchor="middle" font-size="12" fill="#555">cmd (esvaziar, limiar)</text>
+
+  <!-- Simulador -> broker -->
+  <path d="M440,565 H780 V412" fill="none" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="610" y="555" text-anchor="middle" font-size="12" fill="#555">MQTT · mesmos tópicos</text>
+
+  <!-- Painel -->
+  <rect x="1180" y="110" width="380" height="180" rx="14" fill="#FFF3EA" stroke="#E85D04" stroke-width="2"/>
+  <text x="1200" y="146" font-size="20" font-weight="700" fill="#222">Painel web (navegador)</text>
+  <text x="1200" y="176" font-size="14" fill="#333">fila de coleta por urgência</text>
+  <text x="1200" y="198" font-size="14" fill="#333">nível, previsão e histórico</text>
+  <text x="1200" y="220" font-size="14" fill="#333">envia comandos às lixeiras</text>
+  <text x="1200" y="258" font-size="12" fill="#555">HTML · JavaScript · MQTT.js</text>
+
+  <!-- broker <-> painel -->
+  <text x="1090" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#222">WebSocket</text>
+  <line x1="1000" y1="236" x2="1178" y2="236" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <line x1="1178" y1="270" x2="1002" y2="270" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="1090" y="290" text-anchor="middle" font-size="12" fill="#555">cmd</text>
+
+  <!-- Back-end planejado -->
+  <rect x="1180" y="380" width="380" height="120" rx="14" fill="#fff" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="1200" y="416" font-size="20" font-weight="700" fill="#444">Back-end Flask (planejado)</text>
+  <text x="1200" y="444" font-size="14" fill="#555">assina ecobin/# e grava o histórico</text>
+  <text x="1200" y="466" font-size="14" fill="#555">Python</text>
+
+  <path d="M1000,370 H1090 V440 H1178" fill="none" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#g)"/>
+  <text x="1090" y="362" text-anchor="middle" font-size="12" fill="#555">assina</text>
+  <line x1="1370" y1="378" x2="1370" y2="292" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#g)"/>
+  <text x="1380" y="340" font-size="12" fill="#555">histórico (API)</text>
+
+  <rect x="1180" y="560" width="180" height="70" rx="12" fill="#fff" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="1270" y="592" text-anchor="middle" font-size="16" font-weight="700" fill="#444">SQLite</text>
+  <text x="1270" y="612" text-anchor="middle" font-size="12" fill="#555">banco de dados</text>
+  <rect x="1380" y="560" width="180" height="70" rx="12" fill="#fff" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="1470" y="592" text-anchor="middle" font-size="16" font-weight="700" fill="#444">Telegram</text>
+  <text x="1470" y="612" text-anchor="middle" font-size="12" fill="#555">alerta (bônus)</text>
+  <line x1="1270" y1="500" x2="1270" y2="558" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#g)"/>
+  <line x1="1470" y1="500" x2="1470" y2="558" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#g)"/>
+
+  <!-- Legenda -->
+  <line x1="40" y1="700" x2="100" y2="700" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="112" y="705" font-size="14" fill="#222">funcionando</text>
+  <line x1="240" y1="700" x2="300" y2="700" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#g)"/>
+  <text x="312" y="705" font-size="14" fill="#222">planejado para a entrega final</text>
+</svg>
