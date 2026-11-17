@@ -99,9 +99,16 @@ def main():
     c.username_pw_set(USUARIO, ler_senha())
     c.on_connect = ao_conectar
     c.on_message = ao_receber
-    c.connect(HOST, PORTA, keepalive=30)
+    c.on_disconnect = lambda *a: print(f"{time.strftime('%H:%M:%S')}  broker desconectou; tentando de novo...", flush=True)
     try:
-        c.loop_forever()
+        while True:
+            try:
+                c.connect(HOST, PORTA, keepalive=30)
+                break
+            except OSError:
+                print("O broker está desligado. Abra iniciar.bat; esperando ele ligar...", flush=True)
+                time.sleep(5)
+        c.loop_forever(retry_first_connection=True)
     except KeyboardInterrupt:
         pass
 

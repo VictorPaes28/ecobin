@@ -148,9 +148,11 @@ int volumePct(float dist) {
 // ================= ISRs =================
 
 volatile TickType_t tickUltimoIR = 0;   // ultimo acionamento do IR (para pausar o ultrassonico)
-volatile bool irTravado = false;         // escrito so pela TaskSensor; com o IR travado, ele e ignorado
+volatile bool irTravado = false;         // escrito so pela TaskSensor; com o IR com defeito, ele e ignorado
+volatile uint32_t acionamentosIR = 0;    // toda borda de descida, mesmo com defeito (para o vigiarIR)
 
 void IRAM_ATTR isrIR() {
+  acionamentosIR++;
   if (irTravado) return;
   static TickType_t ultimo = 0;
   TickType_t agora = xTaskGetTickCountFromISR();
@@ -182,23 +184,42 @@ bool descarteEmAndamento() {
          (tickUltimoIR != 0 && xTaskGetTickCount() - tickUltimoIR < pdMS_TO_TICKS(PAUSA_DESCARTE_MS));
 }
 
-// Um descarte dura 1-2 s. IR ativo por mais de IR_TRAVADO_MS seguidos = sensor travado;
-// volta ao normal assim que o IR solta. Chamada a cada ciclo da TaskSensor.
+// Detecta IR com defeito, que pausaria o ultrassonico e contaria descartes falsos. Dois sintomas:
+//   - travado: ativo por mais de IR_TRAVADO_MS seguidos (um descarte dura 1-2 s);
+//   - piscando: mais de IR_MAX_ACIONAMENTOS em IR_JANELA_MS (sensibilidade no limite, sol).
+// Com defeito, o IR e ignorado; volta a ser usado depois de IR_RECUPERA_MS sem nenhuma atividade.
+// Chamada a cada ciclo da TaskSensor (1 s).
 void vigiarIR() {
-  static TickType_t inicioAtivo = 0;
-  bool ativo = digitalRead(PIN_IR) == LOW;
+  static TickType_t inicioAtivo = 0, inicioJanela = 0, ultimaAtividade = 0;
+  static uint32_t totalNaJanela = 0, ultimoTotal = 0;
   TickType_t agora = xTaskGetTickCount();
+  bool ativo = digitalRead(PIN_IR) == LOW;
+  uint32_t total = acionamentosIR;
+
+  if (ativo || total != ultimoTotal) ultimaAtividade = agora;
+  ultimoTotal = total;
+  if (!ativo) inicioAtivo = 0;
+  else if (inicioAtivo == 0) inicioAtivo = agora;
+  if (inicioJanela == 0 || agora - inicioJanela >= pdMS_TO_TICKS(IR_JANELA_MS)) {
+    inicioJanela = agora;
+    totalNaJanela = total;
+  }
+
   bool mudou = false;
-  if (!ativo) {
-    inicioAtivo = 0;
-    if (irTravado) { irTravado = false; mudou = true; logMsg("[IR] voltou ao normal"); }
-  } else if (inicioAtivo == 0) {
-    inicioAtivo = agora;
-  } else if (!irTravado && agora - inicioAtivo >= pdMS_TO_TICKS(IR_TRAVADO_MS)) {
-    irTravado = true;
-    tickUltimoIR = 0;
+  if (!irTravado) {
+    const char* motivo = nullptr;
+    if (inicioAtivo != 0 && agora - inicioAtivo >= pdMS_TO_TICKS(IR_TRAVADO_MS)) motivo = "ativo direto";
+    else if (total - totalNaJanela > IR_MAX_ACIONAMENTOS) motivo = "piscando";
+    if (motivo) {
+      irTravado = true;
+      tickUltimoIR = 0;
+      mudou = true;
+      logMsg("[IR] %s: considerado com defeito e ignorado", motivo);
+    }
+  } else if (agora - ultimaAtividade >= pdMS_TO_TICKS(IR_RECUPERA_MS)) {
+    irTravado = false;
     mudou = true;
-    logMsg("[IR] ativo ha mais de %d s: travado, ignorado ate soltar", IR_TRAVADO_MS / 1000);
+    logMsg("[IR] parado ha %d s: voltou a ser usado", IR_RECUPERA_MS / 1000);
   }
   if (mudou) {
     xSemaphoreTake(mutexLixeira, portMAX_DELAY);
