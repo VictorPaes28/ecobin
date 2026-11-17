@@ -4,3 +4,7 @@ topic readwrite ecobin/#
 
 user painel
 topic readwrite ecobin/#
+
+# O back-end so grava o historico: le tudo, nao publica nada
+user backend
+topic read ecobin/#

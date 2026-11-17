@@ -102,6 +102,7 @@
   <h1>Eco<span>Bin</span> · Painel de Coleta</h1>
   <div class="head-right">
     <button id="btnNotif" class="ghost">Ativar notificações</button>
+    <span id="api" class="pill" title="De onde vem o histórico">Histórico: …</span>
     <span id="broker" class="pill">Broker: conectando…</span>
   </div>
 </header>
@@ -236,7 +237,7 @@
       descartes: 0, online: false, ultima: null, lat: null, hist: [], coletas: [], desdeColeta: 0, diag: null };
   }
 
-  // Persistência local (histórico sobrevive ao F5; o banco de dados de verdade vem com o backend)
+  // Cópia local (sobrevive ao F5 mesmo sem back-end). Com o back-end ligado, o banco de dados a substitui.
   function carregar() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
@@ -468,6 +469,46 @@
   carregar();
   renderEventos();
   atualizarBotaoNotif();
+
+  // ---------- Back-end (histórico no banco de dados) ----------
+  // Aberto pelo back-end (http://localhost:5000/): mesma origem. Aberto direto do arquivo: tenta localhost:5000.
+  // Outro endereço: index.html?api=http://IP_DO_PC:5000
+  const API = PARAMS.get("api") || (location.protocol.startsWith("http") ? location.origin : "http://localhost:5000");
+
+  async function api(caminho) {
+    const r = await fetch(API + caminho, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error(`${caminho}: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async function carregarDoBanco() {
+    try {
+      const lista = await api("/api/lixeiras");
+      for (const l of lista) {
+        if (!ID_OK.test(l.id)) continue;
+        const [leituras, coletas] = await Promise.all([
+          api(`/api/lixeiras/${l.id}/leituras?horas=24`),
+          api(`/api/lixeiras/${l.id}/coletas?limite=50`),
+        ]);
+        const b = getBin(l.id);
+        if (l.local && !b.local) b.local = l.local;
+        // O banco é a fonte oficial: substitui o que estava salvo só neste navegador.
+        // Leituras que chegarem pelo MQTT daqui para frente continuam sendo acrescentadas.
+        b.hist = leituras.slice(-HIST_MAX).map(p => ({ t: p.t, n: p.nivel, l: p.limiar }));
+        b.coletas = coletas.map(c => ({ t: c.t, nivel: c.nivel ?? 0, descartes: c.descartes ?? 0 }));
+        b.desdeColeta = coletas.length ? coletas[0].t : 0;
+      }
+      $("api").textContent = "Histórico: banco de dados";
+      $("api").className = "pill on";
+      salvar();
+      render();
+    } catch {
+      $("api").textContent = "Histórico: só neste navegador";
+      $("api").className = "pill off";
+      $("api").title = `Back-end não encontrado em ${API} (ligue applications/backend/iniciar-backend.bat)`;
+    }
+  }
+  carregarDoBanco();
 
   // Senha do usuário "painel": pedida uma vez e lembrada neste navegador (só para este broker)
   function lerSenha() { try { return localStorage.getItem(SENHA_KEY); } catch { return null; } }

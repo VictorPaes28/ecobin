@@ -23,7 +23,8 @@ ecobin/
 │   ├── diagram.json               # circuito para o Wokwi
 │   └── wokwi.toml                 # simulação do build do PlatformIO no VS Code
 ├── applications/
-│   ├── dashboard/index.html       # painel de gestão (abre direto no navegador)
+│   ├── backend/app.py             # Flask + SQLite: grava o histórico e serve o painel
+│   ├── dashboard/index.html       # painel de gestão
 │   └── simulador/simulador.py     # lixeiras virtuais lx02–lx04
 ├── broker/                        # Mosquitto local: configuração, ACL e scripts (senhas fora do Git)
 ├── schematics/                    # guia de montagem e imagens do circuito
@@ -77,8 +78,26 @@ python simulador.py --senha SENHA_DA_LIXEIRA --velocidade 3
 ```
 Por padrão ele usa o broker local (`localhost:1884`). Para o broker público: `--broker broker.hivemq.com --porta 1883 --usuario ""`.
 
-### 4. Painel
-Abra `applications/dashboard/index.html` no navegador, no PC que roda o broker. Na primeira vez ele pede a senha do usuário `painel` e a guarda neste navegador. De outro computador da rede: `index.html?broker=ws://IP_DO_PC:9001`.
+### 4. Back-end (histórico no banco de dados)
+Duplo clique em `applications/backend/iniciar-backend.bat` (na primeira vez ele instala Flask e paho-mqtt). Deixe a janela aberta.
+
+```
+broker ──MQTT (usuário backend, só leitura)──> app.py ──> SQLite (ecobin.db) ──API HTTP :5000──> painel
+```
+
+| Rota | Devolve |
+|---|---|
+| `GET /` | o painel |
+| `GET /api/saude` | back-end vivo, conectado ao broker, quantidade de registros |
+| `GET /api/lixeiras` | estado atual de cada lixeira e a última coleta |
+| `GET /api/lixeiras/<id>/leituras?horas=24` | histórico de nível |
+| `GET /api/lixeiras/<id>/coletas` | coletas registradas (quando, nível, descartes, origem) |
+| `GET /api/eventos` | alertas de cheia, coletas, lixeiras online/offline |
+
+Tabelas: `lixeiras` (estado atual), `leituras` (nível ao longo do tempo) e `eventos`. Mensagens retidas e leituras com o sensor em falha não entram no histórico, para não distorcer a previsão. A senha do usuário `backend` vem de `broker/credenciais.local.txt` ou é pedida ao iniciar.
+
+### 5. Painel
+Com o back-end ligado, abra **http://localhost:5000/**. O painel carrega o histórico do banco (aparece "Histórico: banco de dados" no topo) e recebe o tempo real pelo broker. Sem o back-end, também dá para abrir `applications/dashboard/index.html` direto: o histórico fica só no navegador. Na primeira vez ele pede a senha do usuário `painel`. De outro computador da rede: `http://IP_DO_PC:5000/`.
 
 ## Interação na simulação
 
@@ -196,7 +215,7 @@ Prefixo: `ecobin/cesar-g7k2/<id>`
 - **Fila de coleta**: ordenada por prioridade (cheias primeiro, depois a que vai encher antes).
 - **Previsão**: regressão linear do nível nos últimos 30 min (desde a última coleta) → velocidade em %/h e tempo até o limiar.
 - **Histórico de coletas**, **eventos**, **diagnóstico de stack** e **notificações do navegador**.
-- O histórico fica no `localStorage` do navegador (sobrevive ao F5). O banco de dados de verdade entra com o backend. Sem `localStorage` (aba anônima, pré-visualização), o painel funciona só em memória.
+- O histórico vem do back-end (SQLite) quando ele está ligado; sem ele, fica no `localStorage` do navegador (sobrevive ao F5). Sem os dois (aba anônima sem back-end), o painel funciona só em memória.
 - **Validação**: como o broker é público, todo valor recebido é checado (tipo, faixa, estado conhecido, ID com até 20 caracteres `A-Z a-z 0-9 _ -`). Textos são exibidos como texto, nunca como HTML.
 
 ## Limitações conhecidas (MVP)

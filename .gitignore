@@ -11,3 +11,6 @@ esp32-esp8266/include/segredos.h
 # Broker local: senhas (hash) e credenciais em texto ficam so na maquina
 broker/senhas
 broker/*.local.txt
+
+# Banco de dados do back-end (gerado ao rodar)
+applications/backend/*.db
