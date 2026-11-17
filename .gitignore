@@ -14,3 +14,4 @@ broker/*.local.txt
 
 # Banco de dados do back-end (gerado ao rodar)
 applications/backend/*.db
+applications/backend/*.local.txt

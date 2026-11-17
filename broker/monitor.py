@@ -42,7 +42,7 @@ def texto(sub, d, bruto):
         estado = ESTADOS.get(d.get("estado"), d.get("estado"))
         s = f"nível {d.get('nivel_pct')}%  {estado}  (lixo a {d.get('dist_cm')} cm do sensor)"
         if d.get("sensor_ok") is False:
-            s += "  [FALHA NO SENSOR]"
+            s += "  [SEM LEITURA DO SENSOR: valor antigo]"
         if d.get("ir_ok") is False:
             s += "  [IR TRAVADO]"
         return s

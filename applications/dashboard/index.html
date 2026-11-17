@@ -146,7 +146,7 @@
       <dt>Descartes</dt><dd id="dDesc">--</dd>
       <dt>Velocidade</dt><dd id="dVel">--</dd>
       <dt>Enche em</dt><dd id="dEta">--</dd>
-      <dt>Latência</dt><dd id="dLat">--</dd>
+      <dt title="Hora em que o painel recebeu menos a hora em que a lixeira mediu. Inclui a diferença entre os relógios do ESP32 (NTP) e deste computador, então é uma estimativa.">Latência (aprox.)</dt><dd id="dLat">--</dd>
       <dt>Última leitura</dt><dd id="dUlt">--</dd>
     </dl>
   </section>
@@ -386,7 +386,7 @@
     $("fill").style.height = (b.nivel ?? 0) + "%";
     $("fill").style.background = cor;
     $("limline").style.bottom = (b.limiar ?? 80) + "%";
-    $("dEstado").textContent = (b.sensorOk ? NOME[b.estado] || "—" : "Falha no sensor")
+    $("dEstado").textContent = (b.sensorOk ? NOME[b.estado] || "—" : "Sem leitura do sensor")
       + (b.sensorOk && b.irOk === false ? " · IR travado" : "") + (b.online ? "" : " · offline");
     $("dEstado").style.color = cor;
     $("dDist").textContent = b.dist != null ? b.dist.toFixed(1) + " cm" : "--";

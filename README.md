@@ -96,6 +96,16 @@ broker ──MQTT (usuário backend, só leitura)──> app.py ──> SQLite (
 
 Tabelas: `lixeiras` (estado atual), `leituras` (nível ao longo do tempo) e `eventos`. Mensagens retidas e leituras com o sensor em falha não entram no histórico, para não distorcer a previsão. A senha do usuário `backend` vem de `broker/credenciais.local.txt` ou é pedida ao iniciar.
 
+**Alerta pelo Telegram (opcional):** quando uma lixeira fica cheia, o back-end manda uma mensagem.
+1. No Telegram, fale com `@BotFather`, envie `/newbot` e guarde o **token** que ele devolve.
+2. Mande qualquer mensagem para o seu bot e abra `https://api.telegram.org/bot<TOKEN>/getUpdates` no navegador: o número em `"chat":{"id":...}` é o **chat id**.
+3. Crie `applications/backend/telegram.local.txt` (fica fora do Git) com:
+   ```
+   TELEGRAM_TOKEN=123456:ABC...
+   TELEGRAM_CHAT_ID=987654321
+   ```
+4. Reinicie o back-end. A janela mostra `[TELEGRAM] alertas ligados`.
+
 ### 5. Painel
 Com o back-end ligado, abra **http://localhost:5000/**. O painel carrega o histórico do banco (aparece "Histórico: banco de dados" no topo) e recebe o tempo real pelo broker. Sem o back-end, também dá para abrir `applications/dashboard/index.html` direto: o histórico fica só no navegador. Na primeira vez ele pede a senha do usuário `painel`. De outro computador da rede: `http://IP_DO_PC:5000/`.
 
@@ -142,9 +152,11 @@ Vale para seção quadrada ou redonda; com paredes retas (`a = b`) vira `h / H`.
 | Saco em pé, objeto caindo, pico isolado | CHEIA só após 3 leituras seguidas acima do limiar (`CONFIRMA_CHEIA`) |
 | Ruído e ecos falsos | Mediana de 5 medições, exigindo pelo menos 3 válidas |
 | Eco do ping anterior dentro da caixa | 60 ms entre medições (recomendação do HC-SR04) |
-| Leitura maior que a lixeira (tampa aberta, eco desviado) | Descartada; se persistir, vira "falha no sensor" |
+| Leitura maior que a lixeira (tampa aberta, eco desviado) | Descartada e registrada no Serial como "eco além do fundo"; **não** é tratada como defeito do sensor |
+| Nenhum pulso do HC-SR04 (fio solto, sem energia) | Depois de 5 ciclos: "sem leitura do sensor" no painel e os **3 LEDs piscam juntos** na lixeira |
+| Botão/painel avisam a coleta antes da troca do saco | A detecção automática só volta depois de ver a lixeira vazia, para não registrar a mesma coleta duas vezes |
 | Ficar oscilando entre cheia e não cheia | Histerese de 10% para sair de CHEIA |
-| Sensor IR travado em "detectando" (sol, sujeira, sensibilidade alta) | Ativo por mais de 10 s (`IR_TRAVADO_MS`) = travado: o IR é ignorado, o nível continua sendo medido e o painel mostra "IR travado" |
+| Sensor IR travado ou piscando (sol, sujeira, sensibilidade no limite) | Ativo direto por mais de 10 s, ou mais de 5 acionamentos em 10 s = defeito: o IR é ignorado, o nível continua sendo medido e o painel mostra "IR travado". Volta a ser usado após 30 s sem atividade |
 
 Para conferir o hardware sem filtros, há um firmware de diagnóstico (`diag/diag.cpp`) que mostra no Serial o valor cru de cada sensor: `pio run -e diag -t upload` e depois `pio device monitor`. Para voltar ao EcoBin: `pio run -e esp32dev -t upload`.
 | Temperatura (Recife ~28 °C × 20 °C padrão) | Velocidade do som corrigida: ~1,5% de erro a menos |

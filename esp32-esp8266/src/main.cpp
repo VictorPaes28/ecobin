@@ -33,6 +33,7 @@ typedef struct {
   bool     sensorOk;   // false ate a 1a leitura valida ou apos FALHAS_SENSOR leituras sem eco
   int      pico;       // maior nivel (confirmado) desde a ultima coleta
   bool     irOk;       // false quando o IR fica ativo por mais de IR_TRAVADO_MS
+  bool     aguardaVazio; // coleta marcada no botao/painel: deteccao automatica so volta depois de ver a lixeira vazia
 } Lixeira;
 
 // Eventos que nao podem se perder: ficam na fila ate serem publicados
@@ -62,7 +63,7 @@ SemaphoreHandle_t mutexSerial;
 TaskHandle_t      hEsvaziar;
 TaskHandle_t      tarefas[6];     // para o diagnostico de stack
 
-Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0, true };
+Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0, true, false };
 
 WiFiClient   wifiClient;
 PubSubClient mqtt(wifiClient);
@@ -110,11 +111,14 @@ void setLeds(Estado e) {
 
 // Velocidade do som corrigida pela temperatura: 331,3 + 0,606*T m/s -> cm/us
 const float CM_POR_US = (331.3f + 0.606f * TEMPERATURA_C) / 10000.0f;
-// Espera o eco por no maximo o tempo de ida e volta de 1,5x a altura da lixeira
-const unsigned long TIMEOUT_ECO_US = (unsigned long)(2.0f * ALTURA_CM * 1.5f / CM_POR_US);
+// O HC-SR04 sempre devolve um pulso (ate ~38 ms quando nao ve nada). Esperar ate 40 ms permite
+// separar "sem pulso nenhum" (fio solto, sensor sem energia) de "eco alem do fundo da lixeira".
+const unsigned long TIMEOUT_ECO_US = 40000UL;
 
-// Distancia em cm, ou -1 se nao houve eco ou se a leitura nao cabe dentro da lixeira
-// (tampa aberta, eco desviado). Abaixo de 2 cm o HC-SR04 nao mede.
+const float SEM_ECO = -1.0f;      // nenhum pulso ou menos de 2 cm (o HC-SR04 nao mede tao perto)
+const float ALEM_DO_FUNDO = -2.0f; // o sensor funciona, mas viu algo mais longe que a lixeira
+
+// Distancia em cm, SEM_ECO ou ALEM_DO_FUNDO (tampa aberta, sensor desalinhado, bancada de teste).
 float medirDistancia() {
   digitalWrite(PIN_TRIG, LOW);
   delayMicroseconds(2);
@@ -123,7 +127,9 @@ float medirDistancia() {
   digitalWrite(PIN_TRIG, LOW);
   unsigned long dur = pulseIn(PIN_ECHO, HIGH, TIMEOUT_ECO_US);
   float d = dur * CM_POR_US / 2.0f;
-  return (dur == 0 || d < 2.0f || d > ALTURA_CM * 1.1f) ? -1 : d;
+  if (dur == 0 || d < 2.0f) return SEM_ECO;
+  if (d > ALTURA_CM * 1.1f) return ALEM_DO_FUNDO;
+  return d;
 }
 
 // Distancia -> % do VOLUME ocupado.
@@ -228,18 +234,34 @@ void vigiarIR() {
   }
 }
 
+// Sem leitura valida, os 3 LEDs piscam juntos: quem esta na lixeira ve que ela nao esta medindo
+// (antes, os LEDs ficavam parados no ultimo estado e pareciam corretos).
+void piscarLedsSemSensor() {
+  static bool aceso = false;
+  xSemaphoreTake(mutexLixeira, portMAX_DELAY);
+  bool semSensor = !lixeira.sensorOk;
+  xSemaphoreGive(mutexLixeira);
+  if (!semSensor) return;   // com sensor ok, quem controla os LEDs e a TaskProcessamento
+  aceso = !aceso;
+  digitalWrite(PIN_LED_VERDE, aceso);
+  digitalWrite(PIN_LED_AMARELO, aceso);
+  digitalWrite(PIN_LED_VERMELHO, aceso);
+}
+
 // Mediana de 5 medicoes do ultrassonico -> filaLeituras
 void TaskSensor(void* pv) {
   TickType_t proximo = xTaskGetTickCount();
-  int falhas = 0;
+  int falhas = 0;   // ciclos seguidos sem eco nenhum
+  int alem = 0;     // ciclos seguidos com eco alem do fundo
   for (;;) {
     float v[5];
-    int n = 0;
+    int n = 0, nAlem = 0;
     vigiarIR();
     bool pausado = descarteEmAndamento();
     for (int i = 0; i < 5 && !pausado; i++) {
       float d = medirDistancia();
       if (d > 0) v[n++] = d;
+      else if (d == ALEM_DO_FUNDO) nAlem++;
       vTaskDelay(pdMS_TO_TICKS(INTERVALO_PING_MS));
       pausado = descarteEmAndamento();
     }
@@ -250,14 +272,21 @@ void TaskSensor(void* pv) {
         for (int j = i; j > 0 && v[j] < v[j - 1]; j--) { float t = v[j]; v[j] = v[j - 1]; v[j - 1] = t; }
       float mediana = v[n / 2];
       xQueueSend(filaLeituras, &mediana, 0);
+      falhas = alem = 0;
+    } else if (nAlem >= 3) {
+      // o sensor responde, so que mais longe que a lixeira: nao e defeito, a leitura so e ignorada
       falhas = 0;
+      if (++alem == FALHAS_SENSOR)
+        logMsg("[SENSOR] eco alem do fundo da lixeira (tampa aberta ou sensor desalinhado): leitura ignorada");
     } else if (++falhas == FALHAS_SENSOR) {
-      // sem eco: jumper solto ou sensor queimado. Avisa em vez de repetir o ultimo nivel.
+      // sem pulso nenhum: jumper solto ou sensor sem energia. Avisa em vez de repetir o ultimo nivel.
+      alem = 0;
       xSemaphoreTake(mutexLixeira, portMAX_DELAY);
       lixeira.sensorOk = false;
       xSemaphoreGive(mutexLixeira);
-      logMsg("[SENSOR] ultrassonico sem resposta");
+      logMsg("[SENSOR] ultrassonico sem resposta (confira os fios do HC-SR04)");
     }
+    piscarLedsSemSensor();
     vTaskDelayUntil(&proximo, pdMS_TO_TICKS(PERIODO_LEITURA_MS));
   }
 }
@@ -288,7 +317,13 @@ void TaskProcessamento(void* pv) {
     lixeira.nivel = nivel;
     lixeira.estado = e;
     lixeira.sensorOk = true;
-    if (sustentado > lixeira.pico) lixeira.pico = sustentado;
+    if (lixeira.aguardaVazio) {
+      // Coleta ja registrada pelo botao/painel antes de a lixeira ser esvaziada de fato:
+      // espera ela aparecer vazia para nao registrar a mesma coleta de novo pela deteccao automatica
+      if (nivel <= AUTO_NIVEL_VAZIA) lixeira.aguardaVazio = false;
+    } else if (sustentado > lixeira.pico) {
+      lixeira.pico = sustentado;
+    }
     int pico = lixeira.pico;
     baixo = (pico >= AUTO_PICO_MIN && nivel <= AUTO_NIVEL_VAZIA) ? baixo + 1 : 0;
     xSemaphoreGive(mutexLixeira);
@@ -342,7 +377,13 @@ void TaskEsvaziar(void* pv) {
     int nivelAntes = max(lixeira.pico, lixeira.nivel);
     uint32_t descartes = lixeira.descartes;
     lixeira.descartes = 0;
-    lixeira.pico = lixeira.nivel;
+    if (origem & (ORIGEM_BOTAO | ORIGEM_PAINEL)) {
+      // aviso manual pode vir antes da troca do saco: a deteccao automatica espera a lixeira ficar vazia
+      lixeira.pico = 0;
+      lixeira.aguardaVazio = lixeira.nivel > AUTO_NIVEL_VAZIA;
+    } else {
+      lixeira.pico = lixeira.nivel;
+    }
     xSemaphoreGive(mutexLixeira);
     enfileirarEvento(EV_ESVAZIADA, nivelAntes, descartes, origem);
     logMsg("[ESVAZIAR] nivel antes = %d%%, descartes = %u, origem = %s", nivelAntes, (unsigned)descartes,
@@ -358,7 +399,12 @@ void TaskEsvaziar(void* pv) {
 typedef enum { REDE_INICIO, REDE_WIFI, REDE_MQTT, REDE_ONLINE } EstadoRede;
 
 bool publicarJson(const char* topico, JsonDocument& doc, bool retain) {
-  char buf[256];
+  char buf[480];   // cabe no buffer do PubSubClient (setBufferSize(512)) junto com o topico
+  if (measureJson(doc) >= sizeof(buf)) {
+    // JSON cortado chegaria invalido e seria ignorado em silencio pelo painel
+    logMsg("[MQTT] mensagem para %s grande demais (%u bytes), nao enviada", topico, (unsigned)measureJson(doc));
+    return true;   // nao e queda de conexao: segue com as proximas
+  }
   size_t n = serializeJson(doc, buf, sizeof(buf));
   return mqtt.publish(topico, (const uint8_t*)buf, n, retain);
 }

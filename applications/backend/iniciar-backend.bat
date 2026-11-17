@@ -13,6 +13,10 @@ rem Senha do usuario "backend": do arquivo local do broker, se existir; senao pe
 set ECOBIN_SENHA_BACKEND=
 for /f "tokens=1,* delims=: " %%a in ('type ..\..\broker\credenciais.local.txt 2^>nul') do if "%%a"=="backend" set "ECOBIN_SENHA_BACKEND=%%b"
 if not defined ECOBIN_SENHA_BACKEND set /p "ECOBIN_SENHA_BACKEND=Senha do usuario backend do broker: "
+rem Alerta pelo Telegram (opcional): crie telegram.local.txt com duas linhas
+rem   TELEGRAM_TOKEN=123456:ABC...
+rem   TELEGRAM_CHAT_ID=987654321
+if exist telegram.local.txt for /f "usebackq tokens=1,* delims==" %%a in ("telegram.local.txt") do set "%%a=%%b"
 .venv\Scripts\python.exe app.py
 pause
 exit /b 0

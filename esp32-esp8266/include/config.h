@@ -3,7 +3,7 @@
 
 // ---------------- Identificacao ----------------
 #define DEVICE_ID "lx01"
-#define LOCAL     "Prototipo (Wokwi)"
+// LOCAL (nome que aparece no painel) e definido mais abaixo; o segredos.h pode trocar
 #define PREFIXO   "ecobin/cesar-g7k2"
 #define TOPICO(sub) PREFIXO "/" DEVICE_ID "/" sub   // ex.: TOPICO("nivel")
 
@@ -25,6 +25,18 @@
   #endif
   #include "segredos.h"   // WIFI_SSID, WIFI_PASS, MQTT_HOST (fora do Git)
   #define WIFI_CANAL 0      // 0 = procura o canal automaticamente
+  #if !defined(MQTT_USER) || !defined(MQTT_PORT)
+    // segredos.h de antes do broker local: compila, mas o broker do projeto (porta 1884, com login) recusa
+    #warning "segredos.h sem MQTT_PORT/MQTT_USER/MQTT_PASS: o broker local do projeto exige login. Veja segredos.exemplo.h"
+  #endif
+#endif
+
+#ifndef LOCAL
+  #if SIMULACAO_WOKWI
+    #define LOCAL "Prototipo (Wokwi)"
+  #else
+    #define LOCAL "Prototipo (bancada)"
+  #endif
 #endif
 
 // Broker local (Mosquitto do projeto, pasta broker/): porta e usuario vem do segredos.h.
