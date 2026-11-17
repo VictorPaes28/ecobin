@@ -6,13 +6,14 @@ Cria lixeiras virtuais que publicam no MQTT exatamente como o ESP32
 com varias lixeiras sem precisar de mais hardware.
 
 Uso:
-    python simulador.py                    # 3 lixeiras, velocidade normal
-    python simulador.py --velocidade 3     # enche 3x mais rapido
-    python simulador.py --broker localhost # usar o Mosquitto local
+    python simulador.py --senha SENHA                  # broker local do projeto (broker/iniciar.bat)
+    python simulador.py --senha SENHA --velocidade 3   # enche 3x mais rapido
+    python simulador.py --broker broker.hivemq.com --porta 1883 --usuario ""   # broker publico
 """
 
 import argparse
 import json
+import os
 import random
 import signal
 import threading
@@ -40,7 +41,7 @@ def agora_ms():
 
 
 class LixeiraVirtual:
-    def __init__(self, cfg, broker, porta, velocidade):
+    def __init__(self, cfg, broker, porta, velocidade, usuario=None, senha=None):
         self.id = cfg["id"]
         self.local = cfg["local"]
         self.taxa = cfg["taxa"] * velocidade
@@ -56,6 +57,8 @@ class LixeiraVirtual:
             client_id=f"ecobin-sim-{self.id}-{random.randint(0, 0xFFFF):04x}",
         )
         self.cliente.will_set(f"{self.base}/status", "offline", qos=1, retain=True)
+        if usuario:
+            self.cliente.username_pw_set(usuario, senha)
         self.cliente.on_connect = self._ao_conectar
         self.cliente.on_message = self._ao_receber
         self.cliente.connect_async(broker, porta, keepalive=30)
@@ -137,13 +140,19 @@ class LixeiraVirtual:
 
 def main():
     ap = argparse.ArgumentParser(description="Simulador de lixeiras EcoBin")
-    ap.add_argument("--broker", default="broker.hivemq.com")
-    ap.add_argument("--porta", type=int, default=1883)
+    ap.add_argument("--broker", default="localhost", help="IP do broker (padrao: este PC)")
+    ap.add_argument("--porta", type=int, default=1884, help="1884 = broker local do projeto")
+    ap.add_argument("--usuario", default="lixeira")
+    ap.add_argument("--senha", default=os.environ.get("ECOBIN_SENHA"),
+                    help="senha do usuario (ou variavel de ambiente ECOBIN_SENHA)")
     ap.add_argument("--velocidade", type=float, default=1.0,
                     help="multiplicador da velocidade de enchimento")
     args = ap.parse_args()
 
-    lixeiras = [LixeiraVirtual(c, args.broker, args.porta, args.velocidade) for c in LIXEIRAS]
+    if args.usuario and not args.senha:
+        ap.error("informe --senha (ou a variavel ECOBIN_SENHA); para broker sem login use --usuario \"\"")
+    lixeiras = [LixeiraVirtual(c, args.broker, args.porta, args.velocidade, args.usuario, args.senha)
+                for c in LIXEIRAS]
     rodando = threading.Event()
     rodando.set()
     signal.signal(signal.SIGINT, lambda *_: rodando.clear())

@@ -3,11 +3,13 @@
 Lixeira inteligente com ESP32 + FreeRTOS + MQTT, simulada no navegador antes da montagem física.
 
 ```
-ESP32 simulado (Wokwi) ──┐                                   ┌── Painel web (index.html)
-  lx01                   ├──MQTT──> broker.hivemq.com ──WS──>┤    fila de coleta, previsão,
-Simulador Python ────────┘   <──────── comandos (cmd) ───────┘    histórico, comandos
-  lx02, lx03, lx04
+ESP32 (placa real) ──────┐   MQTT :1884                       ┌── Painel web (index.html)
+  lx01                   ├──────────> Mosquitto local ──WS───>┤    fila de coleta, previsão,
+Simulador Python ────────┘   <───── comandos (cmd) ──── :9001 ┘    histórico, comandos
+  lx02, lx03, lx04                  (broker/, com usuário e senha)
 ```
+
+A simulação no Wokwi não alcança o PC, então ela continua usando o broker público `broker.hivemq.com` (ver *Simulação*).
 
 ## Estrutura
 
@@ -23,16 +25,33 @@ ecobin/
 ├── applications/
 │   ├── dashboard/index.html       # painel de gestão (abre direto no navegador)
 │   └── simulador/simulador.py     # lixeiras virtuais lx02–lx04
+├── broker/                        # Mosquitto local: configuração, ACL e scripts (senhas fora do Git)
 ├── schematics/                    # guia de montagem e imagens do circuito
 └── docs/                          # relatório de check point, relatório CSBC e figuras
 ```
 
 ## Como rodar
 
+### 0. Broker MQTT local (Mosquitto)
+1. Instale o Mosquitto 2.x (https://mosquitto.org/download/ ou `winget install EclipseFoundation.Mosquitto`).
+2. Na primeira vez, rode `broker/criar-senhas.bat` e escolha as senhas dos usuários `lixeira` (ESP32 e simulador) e `painel` (navegador). O arquivo `broker/senhas` fica fora do Git.
+3. Rode `broker/iniciar.bat` e deixe a janela aberta. Ele mostra o IP do PC, que vai no `MQTT_HOST` do `segredos.h`.
+4. Na primeira execução, o Windows pergunta se o Mosquitto pode usar a rede: permita em **redes privadas**.
+5. Opcional: `broker/monitor.bat` abre uma janela que mostra em português cada mensagem que passa pelo broker (nível, alertas, comandos do painel).
+
+| Porta | Uso |
+|---|---|
+| 1884 | MQTT (ESP32 e simulador) |
+| 9001 | MQTT sobre WebSocket (painel no navegador) |
+
+Sem login o broker recusa a conexão, e cada usuário só acessa os tópicos `ecobin/#` (arquivo `broker/acl`). As portas são 1884/9001 e não 1883 porque o serviço padrão do Mosquitto já ocupa a 1883 dentro do PC.
+
+**Rede:** o ESP32 e o PC precisam estar na mesma rede, e ela não pode isolar os aparelhos entre si (alguns Wi-Fi públicos fazem isso). Se o ESP32 não conectar, use o hotspot do celular para os dois.
+
 ### 1. Firmware com PlatformIO (VS Code)
 1. Instale o VS Code e a extensão **PlatformIO IDE**.
 2. *File → Open Folder* → `esp32-esp8266/`. O PlatformIO baixa a plataforma ESP32 e as bibliotecas (PubSubClient, ArduinoJson) sozinho, a partir do `platformio.ini`.
-3. **Placa real (`esp32dev`)**: copie `include/segredos.exemplo.h` para `include/segredos.h`, preencha a rede e o IP do broker, conecte o ESP32 no USB e use **Upload** e depois **Monitor** na barra do PlatformIO.
+3. **Placa real (`esp32dev`)**: copie `include/segredos.exemplo.h` para `include/segredos.h`, preencha a rede (2,4 GHz), o IP do PC com o broker, a porta 1884 e a senha do usuário `lixeira`, conecte o ESP32 no USB e use **Upload** e depois **Monitor** na barra do PlatformIO.
 
 Pelo terminal do PlatformIO:
 ```bash
@@ -46,19 +65,20 @@ pio device monitor
 - **No VS Code**: instale a extensão **Wokwi Simulator**, compile o ambiente `wokwi` (`pio run -e wokwi`) e rode *F1 → Wokwi: Start Simulator*. Usa o `diagram.json` e o `wokwi.toml` da pasta.
 - **No navegador**: em https://wokwi.com/projects/new/esp32, cole `src/main.cpp` no `sketch.ino`, crie `config.h` com o conteúdo de `include/config.h`, cole o `diagram.json` e adicione **PubSubClient** e **ArduinoJson** no *Library Manager*.
 
-Na simulação, o Serial deve mostrar `[REDE] Wi-Fi ok` e `[REDE] MQTT ok`.
+Na simulação, o Serial deve mostrar `[REDE] Wi-Fi ok` e `[REDE] MQTT ok`. O Wokwi usa o broker público; para ver a simulação no painel, abra `index.html?broker=wss://broker.hivemq.com:8884/mqtt&usuario=`.
 
-### 2. Simulador das outras lixeiras
+### 3. Simulador das outras lixeiras
 ```bash
 cd applications/simulador
 python -m venv .venv
 .venv\Scripts\activate          # Linux/Mac: source .venv/bin/activate
 pip install -r requirements.txt
-python simulador.py --velocidade 3
+python simulador.py --senha SENHA_DA_LIXEIRA --velocidade 3
 ```
+Por padrão ele usa o broker local (`localhost:1884`). Para o broker público: `--broker broker.hivemq.com --porta 1883 --usuario ""`.
 
-### 3. Painel
-Abra `applications/dashboard/index.html` no navegador.
+### 4. Painel
+Abra `applications/dashboard/index.html` no navegador, no PC que roda o broker. Na primeira vez ele pede a senha do usuário `painel` e a guarda neste navegador. De outro computador da rede: `index.html?broker=ws://IP_DO_PC:9001`.
 
 ## Interação na simulação
 
@@ -105,6 +125,9 @@ Vale para seção quadrada ou redonda; com paredes retas (`a = b`) vira `h / H`.
 | Eco do ping anterior dentro da caixa | 60 ms entre medições (recomendação do HC-SR04) |
 | Leitura maior que a lixeira (tampa aberta, eco desviado) | Descartada; se persistir, vira "falha no sensor" |
 | Ficar oscilando entre cheia e não cheia | Histerese de 10% para sair de CHEIA |
+| Sensor IR travado em "detectando" (sol, sujeira, sensibilidade alta) | Ativo por mais de 10 s (`IR_TRAVADO_MS`) = travado: o IR é ignorado, o nível continua sendo medido e o painel mostra "IR travado" |
+
+Para conferir o hardware sem filtros, há um firmware de diagnóstico (`diag/diag.cpp`) que mostra no Serial o valor cru de cada sensor: `pio run -e diag -t upload` e depois `pio device monitor`. Para voltar ao EcoBin: `pio run -e esp32dev -t upload`.
 | Temperatura (Recife ~28 °C × 20 °C padrão) | Velocidade do som corrigida: ~1,5% de erro a menos |
 
 ### Calibração na lixeira real
@@ -148,7 +171,7 @@ Todas leem/escrevem o struct `lixeira` protegido por `mutexLixeira`
 ### Conexão sem fio (TaskRede)
 Máquina de estados `INICIO → WIFI → MQTT → ONLINE`:
 - Timeout de 15 s no Wi-Fi; espera crescente entre tentativas (1, 2, 4… até 30 s).
-- `setSocketTimeout(5)` evita que o `connect` trave a task por 15 s.
+- `setSocketTimeout(3)`: a PubSubClient espera a resposta do broker num laço ocupado; com 5 s ou mais, o watchdog do núcleo 0 reinicia a placa (visto no teste físico de 17/11).
 - **LWT** com QoS 1: se cair sem aviso, o broker publica `offline`.
 - Ao reconectar, reenvia o estado completo e os eventos pendentes.
 - Nível publicado só quando muda ou a cada 10 s (heartbeat), retido no broker.
@@ -177,7 +200,7 @@ Prefixo: `ecobin/cesar-g7k2/<id>`
 - **Validação**: como o broker é público, todo valor recebido é checado (tipo, faixa, estado conhecido, ID com até 20 caracteres `A-Z a-z 0-9 _ -`). Textos são exibidos como texto, nunca como HTML.
 
 ## Limitações conhecidas (MVP)
-- **Broker público**: qualquer um pode ler e enviar comandos nos tópicos. No final: Mosquitto local com usuário/senha.
+- **Sem TLS no broker local**: usuário e senha trafegam sem criptografia na rede local. Suficiente para o protótipo; em produção, usar TLS (porta 8883). A simulação no Wokwi ainda usa o broker público, aberto a qualquer um.
 - **PubSubClient só publica com QoS 0**: um alerta pode se perder se a conexão cair exatamente no envio. Para QoS 1, trocar pela biblioteca `espMqttClient`.
 - **Latência no Wokwi**: o relógio simulado anda mais devagar que o real, então a latência medida com o Wokwi não vale; com o simulador Python ou o ESP32 real, sim.
 - **IR simulado por botão**: no circuito real, o módulo IR liga no mesmo GPIO27.

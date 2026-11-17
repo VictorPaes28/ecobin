@@ -189,7 +189,12 @@
 
 <script>
   const PREFIXO = "ecobin/cesar-g7k2";
-  const BROKER = "wss://broker.hivemq.com:8884/mqtt";
+  // Padrão: broker local do projeto (broker/iniciar.bat), WebSocket na porta 9001 deste PC.
+  // Outro broker:  index.html?broker=ws://192.168.0.10:9001   ou   ?broker=wss://broker.hivemq.com:8884/mqtt&usuario=
+  const PARAMS = new URLSearchParams(location.search);
+  const BROKER = PARAMS.get("broker") || `ws://${location.hostname || "localhost"}:9001`;
+  const USUARIO = PARAMS.has("usuario") ? PARAMS.get("usuario") : "painel";
+  const SENHA_KEY = "ecobin-senha-" + BROKER;
   const STORE_KEY = "ecobin-painel-v2";
   const HIST_MAX = 400;              // pontos guardados por lixeira
   const JANELA_MS = 30 * 60 * 1000;  // janela usada na previsão
@@ -227,7 +232,7 @@
   let escolhaManual = false;
 
   function getBin(id) {
-    return bins[id] ??= { id, local: "", nivel: null, dist: null, estado: null, limiar: null, sensorOk: true,
+    return bins[id] ??= { id, local: "", nivel: null, dist: null, estado: null, limiar: null, sensorOk: true, irOk: true,
       descartes: 0, online: false, ultima: null, lat: null, hist: [], coletas: [], desdeColeta: 0, diag: null };
   }
 
@@ -353,6 +358,8 @@
         el("div", { class: "bar" }, el("div", { class: "track" }, fill, mark),
           el("span", { class: "num" }, b.nivel != null ? b.nivel + "%" : "--")),
         !b.sensorOk ? el("span", { class: "chip", style: `color:${css("--bad")};border-color:${css("--bad")}` }, "Sensor")
+          : b.irOk === false ? el("span", { class: "chip", style: `color:${css("--warn")};border-color:${css("--warn")}`,
+              title: "Sensor IR travado: nível medido normalmente, descartes não contados" }, "IR")
           : b.estado ? el("span", { class: "chip", style: `color:${cor};border-color:${cor}` }, NOME[b.estado])
           : el("span", { class: "loc" }, "sem dados"),
         el("span", {}, eta(b).txt),
@@ -378,7 +385,8 @@
     $("fill").style.height = (b.nivel ?? 0) + "%";
     $("fill").style.background = cor;
     $("limline").style.bottom = (b.limiar ?? 80) + "%";
-    $("dEstado").textContent = (b.sensorOk ? NOME[b.estado] || "—" : "Falha no sensor") + (b.online ? "" : " · offline");
+    $("dEstado").textContent = (b.sensorOk ? NOME[b.estado] || "—" : "Falha no sensor")
+      + (b.sensorOk && b.irOk === false ? " · IR travado" : "") + (b.online ? "" : " · offline");
     $("dEstado").style.color = cor;
     $("dDist").textContent = b.dist != null ? b.dist.toFixed(1) + " cm" : "--";
     $("dLimiar").textContent = b.limiar != null ? b.limiar + "%" : "--";
@@ -461,7 +469,29 @@
   renderEventos();
   atualizarBotaoNotif();
 
-  const client = mqtt.connect(BROKER, { clientId: "ecobin-web-" + Math.random().toString(16).slice(2, 10) });
+  // Senha do usuário "painel": pedida uma vez e lembrada neste navegador (só para este broker)
+  function lerSenha() { try { return localStorage.getItem(SENHA_KEY); } catch { return null; } }
+  function guardarSenha(s) { try { s == null ? localStorage.removeItem(SENHA_KEY) : localStorage.setItem(SENHA_KEY, s); } catch {} }
+  let senha = null, senhaRecusada = false;
+  if (USUARIO) {
+    senha = lerSenha() ?? prompt(`Senha do usuário "${USUARIO}" do broker ${BROKER}`);
+    if (senha) guardarSenha(senha);
+  }
+
+  const client = mqtt.connect(BROKER, {
+    clientId: "ecobin-web-" + Math.random().toString(16).slice(2, 10),
+    ...(USUARIO ? { username: USUARIO, password: senha ?? "" } : {}),
+  });
+  client.on("error", (err) => {
+    // Senha errada: esquece a guardada e para de tentar; F5 pede de novo
+    if (/not authorized|bad user name or password/i.test(err.message)) {
+      guardarSenha(null);
+      senhaRecusada = true;
+      client.end(true);
+      $("broker").textContent = "Broker: senha recusada (F5 para tentar de novo)";
+      $("broker").className = "pill off";
+    }
+  });
 
   client.on("connect", () => {
     $("broker").textContent = "Broker: conectado";
@@ -470,6 +500,7 @@
     render();
   });
   client.on("close", () => {
+    if (senhaRecusada) return;
     $("broker").textContent = "Broker: desconectado";
     $("broker").className = "pill off";
     render();
@@ -504,7 +535,10 @@
       const nivel = inteiro(d.nivel_pct, 0, 100), limiar = inteiro(d.limiar, 0, 100);
       if (nivel == null || limiar == null || !ESTADOS.has(d.estado)) return;
       const sensorOk = d.sensor_ok !== false;
-      Object.assign(b, { nivel, limiar, sensorOk, estado: d.estado, dist: num(d.dist_cm, 0, 500), ultima: agora });
+      const irOk = d.ir_ok !== false;   // campo novo: firmwares antigos e o simulador nao mandam
+      if (!packet.retain && b.irOk && !irOk) logEvento(`⚠️ ${id} sensor IR travado (descartes não contados)${onde}`);
+      if (!packet.retain && b.irOk === false && irOk) logEvento(`${id} sensor IR voltou ao normal${onde}`);
+      Object.assign(b, { nivel, limiar, sensorOk, irOk, estado: d.estado, dist: num(d.dist_cm, 0, 500), ultima: agora });
       const ts = num(d.ts, 0, Infinity);
       b.lat = ts > 0 && agora - ts >= 0 && agora - ts < 60000 ? agora - ts : null;
       // retida = último valor guardado pelo broker (pode ser antigo); sem sensor = valor parado.

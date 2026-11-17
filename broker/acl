@@ -1,0 +1,6 @@
+# Cada usuario so enxerga os topicos do EcoBin
+user lixeira
+topic readwrite ecobin/#
+
+user painel
+topic readwrite ecobin/#

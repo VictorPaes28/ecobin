@@ -32,6 +32,7 @@ typedef struct {
   uint32_t descartes;  // desde o ultimo esvaziamento
   bool     sensorOk;   // false ate a 1a leitura valida ou apos FALHAS_SENSOR leituras sem eco
   int      pico;       // maior nivel (confirmado) desde a ultima coleta
+  bool     irOk;       // false quando o IR fica ativo por mais de IR_TRAVADO_MS
 } Lixeira;
 
 // Eventos que nao podem se perder: ficam na fila ate serem publicados
@@ -61,7 +62,7 @@ SemaphoreHandle_t mutexSerial;
 TaskHandle_t      hEsvaziar;
 TaskHandle_t      tarefas[6];     // para o diagnostico de stack
 
-Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0 };
+Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0, true };
 
 WiFiClient   wifiClient;
 PubSubClient mqtt(wifiClient);
@@ -147,8 +148,10 @@ int volumePct(float dist) {
 // ================= ISRs =================
 
 volatile TickType_t tickUltimoIR = 0;   // ultimo acionamento do IR (para pausar o ultrassonico)
+volatile bool irTravado = false;         // escrito so pela TaskSensor; com o IR travado, ele e ignorado
 
 void IRAM_ATTR isrIR() {
+  if (irTravado) return;
   static TickType_t ultimo = 0;
   TickType_t agora = xTaskGetTickCountFromISR();
   tickUltimoIR = agora;
@@ -171,10 +174,37 @@ void IRAM_ATTR isrBotao() {
 
 // ================= Tasks da lixeira =================
 
-// Mao ou objeto passando pela boca da lixeira: o ultrassonico mediria ele, nao o lixo
+// Mao ou objeto passando pela boca da lixeira: o ultrassonico mediria ele, nao o lixo.
+// Com o IR travado, ele nao pausa mais nada: sem isso, um IR com defeito parava a medicao para sempre.
 bool descarteEmAndamento() {
+  if (irTravado) return false;
   return digitalRead(PIN_IR) == LOW ||
          (tickUltimoIR != 0 && xTaskGetTickCount() - tickUltimoIR < pdMS_TO_TICKS(PAUSA_DESCARTE_MS));
+}
+
+// Um descarte dura 1-2 s. IR ativo por mais de IR_TRAVADO_MS seguidos = sensor travado;
+// volta ao normal assim que o IR solta. Chamada a cada ciclo da TaskSensor.
+void vigiarIR() {
+  static TickType_t inicioAtivo = 0;
+  bool ativo = digitalRead(PIN_IR) == LOW;
+  TickType_t agora = xTaskGetTickCount();
+  bool mudou = false;
+  if (!ativo) {
+    inicioAtivo = 0;
+    if (irTravado) { irTravado = false; mudou = true; logMsg("[IR] voltou ao normal"); }
+  } else if (inicioAtivo == 0) {
+    inicioAtivo = agora;
+  } else if (!irTravado && agora - inicioAtivo >= pdMS_TO_TICKS(IR_TRAVADO_MS)) {
+    irTravado = true;
+    tickUltimoIR = 0;
+    mudou = true;
+    logMsg("[IR] ativo ha mais de %d s: travado, ignorado ate soltar", IR_TRAVADO_MS / 1000);
+  }
+  if (mudou) {
+    xSemaphoreTake(mutexLixeira, portMAX_DELAY);
+    lixeira.irOk = !irTravado;
+    xSemaphoreGive(mutexLixeira);
+  }
 }
 
 // Mediana de 5 medicoes do ultrassonico -> filaLeituras
@@ -184,6 +214,7 @@ void TaskSensor(void* pv) {
   for (;;) {
     float v[5];
     int n = 0;
+    vigiarIR();
     bool pausado = descarteEmAndamento();
     for (int i = 0; i < 5 && !pausado; i++) {
       float d = medirDistancia();
@@ -331,7 +362,7 @@ bool conectarMqtt() {
   static char clientId[32];
   snprintf(clientId, sizeof(clientId), "ecobin-%s-%06x", DEVICE_ID, (unsigned)(ESP.getEfuseMac() & 0xFFFFFF));
   // LWT: se a conexao cair sem aviso, o broker publica "offline" sozinho
-  if (!mqtt.connect(clientId, TOPICO("status"), 1, true, "offline")) return false;
+  if (!mqtt.connect(clientId, MQTT_USER, MQTT_PASS, TOPICO("status"), 1, true, "offline")) return false;
 
   mqtt.publish(TOPICO("status"), "online", true);
   JsonDocument info;
@@ -373,7 +404,7 @@ bool enviarTelemetria(bool forcar) {
   bool ok = true;
 
   bool mudou = l.nivel != ultima.nivel || l.estado != ultima.estado ||
-               l.limiar != ultima.limiar || l.sensorOk != ultima.sensorOk;
+               l.limiar != ultima.limiar || l.sensorOk != ultima.sensorOk || l.irOk != ultima.irOk;
   if (forcar || mudou || xTaskGetTickCount() - ultimoEnvio >= pdMS_TO_TICKS(HEARTBEAT_MS)) {
     JsonDocument doc;
     doc["dist_cm"] = roundf(l.distCm * 10) / 10;
@@ -381,6 +412,7 @@ bool enviarTelemetria(bool forcar) {
     doc["estado"] = NOME_ESTADO[l.estado];
     doc["limiar"] = l.limiar;
     doc["sensor_ok"] = l.sensorOk;
+    doc["ir_ok"] = l.irOk;
     doc["ts"] = agoraMs();
     ok = publicarJson(TOPICO("nivel"), doc, true);
     if (ok) ultimoEnvio = xTaskGetTickCount();
@@ -415,7 +447,9 @@ void TaskRede(void* pv) {
   mqtt.setCallback(aoReceberComando);
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(30);
-  mqtt.setSocketTimeout(5);   // padrao e 15 s: travaria a task por muito tempo
+  // A PubSubClient espera a resposta do broker num laco ocupado (sem liberar a CPU). Se durar 5 s,
+  // o watchdog do nucleo 0 reinicia a placa (visto no teste fisico de 17/11). Por isso fica abaixo de 5 s.
+  mqtt.setSocketTimeout(3);
 
   for (;;) {
     switch (rede) {

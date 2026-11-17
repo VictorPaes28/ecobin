@@ -27,7 +27,15 @@
   #define WIFI_CANAL 0      // 0 = procura o canal automaticamente
 #endif
 
-#define MQTT_PORT 1883
+// Broker local (Mosquitto do projeto, pasta broker/): porta e usuario vem do segredos.h.
+// Sem eles (Wokwi / broker publico): porta 1883 e conexao sem login.
+#ifndef MQTT_PORT
+  #define MQTT_PORT 1883
+#endif
+#ifndef MQTT_USER
+  #define MQTT_USER nullptr
+  #define MQTT_PASS nullptr
+#endif
 #define FUSO_S    (-3 * 3600)           // horario de Brasilia (NTP)
 
 // ---------------- Pinos ----------------
@@ -67,6 +75,7 @@
 #define FALHAS_SENSOR          5   // leituras seguidas sem eco para considerar o sensor com falha
 #define INTERVALO_PING_MS     60   // minimo recomendado pelo HC-SR04 entre medicoes
 #define PAUSA_DESCARTE_MS   2000   // ignora o ultrassonico durante e logo apos um descarte
+#define IR_TRAVADO_MS      10000   // IR ativo por mais tempo que isso = travado (sujeira, sol, ajuste): passa a ser ignorado
 #define HEARTBEAT_MS       10000   // publica o nivel mesmo sem mudanca
 #define DIAG_MS            30000
 #define JANELA_COLETA_MS   60000   // avisos de coleta dentro deste tempo contam como a mesma coleta

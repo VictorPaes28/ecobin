@@ -53,22 +53,22 @@
   <!-- Broker -->
   <rect x="680" y="190" width="320" height="220" rx="14" fill="#fff" stroke="#222" stroke-width="2.2"/>
   <text x="840" y="232" text-anchor="middle" font-size="22" font-weight="700" fill="#222">Broker MQTT</text>
-  <text x="840" y="268" text-anchor="middle" font-size="14" fill="#222">Hoje: broker.hivemq.com (público)</text>
-  <text x="840" y="292" text-anchor="middle" font-size="14" fill="#222">Entrega: Mosquitto local</text>
+  <text x="840" y="268" text-anchor="middle" font-size="14" fill="#222">Mosquitto local (PC do grupo)</text>
+  <text x="840" y="292" text-anchor="middle" font-size="14" fill="#222">usuário e senha · ACL ecobin/#</text>
   <line x1="710" y1="312" x2="970" y2="312" stroke="#ddd"/>
   <text x="840" y="338" text-anchor="middle" font-size="13" fill="#555">tópicos:</text>
   <text x="840" y="358" text-anchor="middle" font-size="13" fill="#555" font-family="Consolas, monospace">ecobin/cesar-g7k2/&lt;id&gt;/…</text>
 
   <!-- ESP32 <-> broker -->
-  <text x="550" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#222">Wi-Fi · MQTT (TCP 1883)</text>
+  <text x="550" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#222">Wi-Fi · MQTT (TCP 1884)</text>
   <line x1="420" y1="228" x2="678" y2="228" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
-  <text x="550" y="220" text-anchor="middle" font-size="12" fill="#555">nivel · alerta · evento · status</text>
+  <text x="550" y="220" text-anchor="middle" font-size="12" fill="#555">nivel · descartes · alerta · evento · status</text>
   <line x1="678" y1="268" x2="422" y2="268" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
   <text x="550" y="288" text-anchor="middle" font-size="12" fill="#555">cmd (esvaziar, limiar)</text>
 
   <!-- Simulador -> broker -->
-  <path d="M440,565 H780 V412" fill="none" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
-  <text x="610" y="555" text-anchor="middle" font-size="12" fill="#555">MQTT · mesmos tópicos</text>
+  <path d="M442,565 H780 V412" fill="none" stroke="#E85D04" stroke-width="2.4" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text x="610" y="555" text-anchor="middle" font-size="12" fill="#555">MQTT · mesmos tópicos, inclusive cmd</text>
 
   <!-- Painel -->
   <rect x="1180" y="110" width="380" height="180" rx="14" fill="#FFF3EA" stroke="#E85D04" stroke-width="2"/>
@@ -79,7 +79,7 @@
   <text x="1200" y="258" font-size="12" fill="#555">HTML · JavaScript · MQTT.js</text>
 
   <!-- broker <-> painel -->
-  <text x="1090" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#222">WebSocket</text>
+  <text x="1090" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#222">WebSocket (9001)</text>
   <line x1="1000" y1="236" x2="1178" y2="236" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
   <line x1="1178" y1="270" x2="1002" y2="270" stroke="#E85D04" stroke-width="2.4" marker-end="url(#a)"/>
   <text x="1090" y="290" text-anchor="middle" font-size="12" fill="#555">cmd</text>

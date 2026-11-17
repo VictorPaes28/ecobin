@@ -7,3 +7,7 @@ __pycache__/
 
 # Senha do Wi-Fi e IP do broker (ver include/segredos.exemplo.h)
 esp32-esp8266/include/segredos.h
+
+# Broker local: senhas (hash) e credenciais em texto ficam so na maquina
+broker/senhas
+broker/*.local.txt
