@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="880" viewBox="0 0 1500 880" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <g id="gnd" stroke="#222" stroke-width="2">
+      <line x1="-14" y1="0" x2="14" y2="0"/><line x1="-9" y1="6" x2="9" y2="6"/><line x1="-4" y1="12" x2="4" y2="12"/>
+    </g>
+    <path id="resH" d="M0,0 l5,0 l5,-8 l10,16 l10,-16 l10,16 l10,-16 l5,8 l5,0" fill="none" stroke="#222" stroke-width="2"/>
+    <path id="resV" d="M0,0 l0,5 l-8,5 l16,10 l-16,10 l16,10 l-16,10 l8,5 l0,5" fill="none" stroke="#222" stroke-width="2"/>
+  </defs>
+  <rect width="1500" height="880" fill="#fff"/>
+
+  <g stroke="#222" stroke-width="2" fill="none">
+    <!-- ESP32 left side -->
+    <line x1="620" y1="220" x2="650" y2="220"/><line x1="580" y1="220" x2="620" y2="220"/><line x1="580" y1="220" x2="580" y2="195"/><line x1="568" y1="195" x2="592" y2="195"/>
+    <line x1="590" y1="280" x2="650" y2="280"/><line x1="590" y1="280" x2="590" y2="300"/>
+    <line x1="620" y1="380" x2="650" y2="380"/>
+    <line x1="620" y1="440" x2="650" y2="440"/>
+    <!-- ESP32 right side -->
+    <line x1="950" y1="220" x2="1020" y2="220"/><line x1="1020" y1="220" x2="1020" y2="195"/><line x1="1008" y1="195" x2="1032" y2="195"/>
+    <line x1="950" y1="280" x2="1010" y2="280"/><line x1="1010" y1="280" x2="1010" y2="300"/>
+    <line x1="950" y1="340" x2="1180" y2="340"/>
+    <line x1="950" y1="470" x2="1090" y2="470"/>
+    <line x1="950" y1="560" x2="1040" y2="560"/>
+    <line x1="950" y1="630" x2="1040" y2="630"/>
+    <line x1="950" y1="700" x2="1040" y2="700"/>
+
+    <!-- HC-SR04 wiring -->
+    <line x1="330" y1="400" x2="380" y2="400"/><line x1="380" y1="400" x2="380" y2="375"/><line x1="368" y1="375" x2="392" y2="375"/>
+    <path d="M330,430 H470 V380 H620"/>
+    <line x1="330" y1="460" x2="390" y2="460"/>
+    <path d="M450,460 H520 V440 H620"/>
+    <line x1="520" y1="460" x2="520" y2="470"/><line x1="520" y1="530" x2="520" y2="545"/>
+    <path d="M330,490 H360 V520"/>
+
+    <!-- IR -->
+    <line x1="1180" y1="370" x2="1200" y2="370"/><line x1="1150" y1="370" x2="1180" y2="370"/><line x1="1150" y1="360" x2="1150" y2="380"/>
+    <path d="M1200,400 H1160 V425"/>
+    <line x1="1180" y1="340" x2="1200" y2="340"/>
+
+    <!-- Botao -->
+    <path d="M1150,470 H1210 V490"/>
+    <line x1="1095" y1="455" x2="1145" y2="455"/><line x1="1120" y1="455" x2="1120" y2="442"/><line x1="1110" y1="442" x2="1130" y2="442"/>
+
+    <!-- LEDs -->
+    <path d="M1100,560 H1150"/><path d="M1172,560 H1230 V578"/>
+    <path d="M1100,630 H1150"/><path d="M1172,630 H1230 V648"/>
+    <path d="M1100,700 H1150"/><path d="M1172,700 H1230 V718"/>
+  </g>
+
+  <!-- resistores -->
+  <use href="#resH" x="390" y="460"/>
+  <use href="#resV" x="520" y="470"/>
+  <use href="#resH" x="1040" y="560"/>
+  <use href="#resH" x="1040" y="630"/>
+  <use href="#resH" x="1040" y="700"/>
+
+  <!-- terras -->
+  <use href="#gnd" x="590" y="300"/>
+  <use href="#gnd" x="1010" y="300"/>
+  <use href="#gnd" x="360" y="520"/>
+  <use href="#gnd" x="520" y="545"/>
+  <use href="#gnd" x="1160" y="425"/>
+  <use href="#gnd" x="1210" y="490"/>
+  <use href="#gnd" x="1230" y="578"/>
+  <use href="#gnd" x="1230" y="648"/>
+  <use href="#gnd" x="1230" y="718"/>
+
+  <!-- nos -->
+  <circle cx="520" cy="460" r="4.5" fill="#222"/>
+  <circle cx="1090" cy="470" r="4.5" fill="#fff" stroke="#222" stroke-width="2"/>
+  <circle cx="1150" cy="470" r="4.5" fill="#fff" stroke="#222" stroke-width="2"/>
+
+  <!-- LEDs -->
+  <g stroke="#222" stroke-width="2">
+    <polygon points="1150,548 1150,572 1172,560" fill="#2E9E4F"/><line x1="1172" y1="548" x2="1172" y2="572"/>
+    <polygon points="1150,618 1150,642 1172,630" fill="#E8B10C"/><line x1="1172" y1="618" x2="1172" y2="642"/>
+    <polygon points="1150,688 1150,712 1172,700" fill="#D62828"/><line x1="1172" y1="688" x2="1172" y2="712"/>
+  </g>
+
+  <!-- ESP32 -->
+  <rect x="650" y="130" width="300" height="640" rx="10" fill="#F4F4F4" stroke="#222" stroke-width="2.5"/>
+  <rect x="650" y="130" width="300" height="56" rx="10" fill="#222"/>
+  <rect x="650" y="170" width="300" height="16" fill="#222"/>
+  <text x="800" y="166" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">ESP32 DevKit</text>
+  <g font-size="16" fill="#222" font-family="Consolas, monospace">
+    <text x="665" y="225">VIN (5V)</text>
+    <text x="665" y="285">GND</text>
+    <text x="665" y="385">GPIO5</text>
+    <text x="665" y="445">GPIO18</text>
+    <text x="935" y="225" text-anchor="end">3V3</text>
+    <text x="935" y="285" text-anchor="end">GND</text>
+    <text x="935" y="345" text-anchor="end">GPIO27</text>
+    <text x="935" y="475" text-anchor="end">GPIO21</text>
+    <text x="935" y="565" text-anchor="end">GPIO33</text>
+    <text x="935" y="635" text-anchor="end">GPIO26</text>
+    <text x="935" y="705" text-anchor="end">GPIO14</text>
+  </g>
+
+  <!-- HC-SR04 -->
+  <rect x="130" y="330" width="200" height="200" rx="10" fill="#EAF2FB" stroke="#1D4E89" stroke-width="2"/>
+  <text x="200" y="362" text-anchor="middle" font-size="18" font-weight="700" fill="#1D4E89">HC-SR04</text>
+  <text x="200" y="382" text-anchor="middle" font-size="13" fill="#444">ultrassônico</text>
+  <g font-size="14" fill="#222" font-family="Consolas, monospace" text-anchor="end">
+    <text x="320" y="405">VCC</text><text x="320" y="435">TRIG</text><text x="320" y="465">ECHO</text><text x="320" y="495">GND</text>
+  </g>
+
+  <!-- Sensor IR -->
+  <rect x="1200" y="300" width="220" height="120" rx="10" fill="#F1ECFA" stroke="#5B3A9A" stroke-width="2"/>
+  <text x="1340" y="345" text-anchor="middle" font-size="18" font-weight="700" fill="#5B3A9A">Sensor IR</text>
+  <text x="1340" y="366" text-anchor="middle" font-size="13" fill="#444">descartes</text>
+  <g font-size="14" fill="#222" font-family="Consolas, monospace">
+    <text x="1210" y="345">OUT</text><text x="1210" y="375">VCC</text><text x="1210" y="405">GND</text>
+  </g>
+
+  <!-- rotulos de alimentacao -->
+  <g font-size="15" font-weight="700" fill="#C1121F" text-anchor="middle">
+    <text x="580" y="186">5V</text>
+    <text x="1020" y="186">3V3</text>
+    <text x="380" y="366">5V</text>
+  </g>
+  <text x="1142" y="375" font-size="15" font-weight="700" fill="#C1121F" text-anchor="end">3V3</text>
+
+  <!-- rotulos -->
+  <g font-size="14" fill="#222">
+    <text x="420" y="446" text-anchor="middle">1 kΩ</text>
+    <text x="536" y="505">2 kΩ</text>
+    <text x="1070" y="545" text-anchor="middle">330 Ω</text>
+    <text x="1070" y="615" text-anchor="middle">330 Ω</text>
+    <text x="1070" y="685" text-anchor="middle">330 Ω</text>
+    <text x="1260" y="565">LED verde · normal</text>
+    <text x="1260" y="635">LED amarelo · atenção</text>
+    <text x="1260" y="705">LED vermelho · cheia</text>
+    <text x="1120" y="520" text-anchor="middle">Botão · lixeira esvaziada</text>
+  </g>
+  <text x="400" y="600" font-size="13" fill="#555">divisor de tensão no ECHO: 5 V → 3,3 V</text>
+
+  <!-- notas -->
+  <g font-size="14" fill="#555">
+    <text x="130" y="830">GPIO27 (IR) e GPIO21 (botão) usam o pull-up interno do ESP32 e são ativos em nível baixo.</text>
+    <text x="130" y="852">Na simulação do Wokwi, o sensor IR é representado por um botão no mesmo GPIO27.</text>
+  </g>
+</svg>
