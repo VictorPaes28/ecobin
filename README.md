@@ -152,11 +152,11 @@ Vale para seção quadrada ou redonda; com paredes retas (`a = b`) vira `h / H`.
 | Saco em pé, objeto caindo, pico isolado | CHEIA só após 3 leituras seguidas acima do limiar (`CONFIRMA_CHEIA`) |
 | Ruído e ecos falsos | Mediana de 5 medições, exigindo pelo menos 3 válidas |
 | Eco do ping anterior dentro da caixa | 60 ms entre medições (recomendação do HC-SR04) |
-| Leitura maior que a lixeira (tampa aberta, eco desviado) | Descartada e registrada no Serial como "eco além do fundo"; **não** é tratada como defeito do sensor |
+| Leitura maior que a lixeira (tampa aberta, eco desviado) | Descartada; após 5 ciclos o nível antigo deixa de valer ("sem leitura do sensor") e o Serial explica "eco além do fundo", diferente de fio solto |
 | Nenhum pulso do HC-SR04 (fio solto, sem energia) | Depois de 5 ciclos: "sem leitura do sensor" no painel e os **3 LEDs piscam juntos** na lixeira |
-| Botão/painel avisam a coleta antes da troca do saco | A detecção automática só volta depois de ver a lixeira vazia, para não registrar a mesma coleta duas vezes |
+| Botão/painel avisam a coleta antes da troca do saco | Esvaziamento detectado até 15 min depois do aviso conta como a mesma coleta; depois disso é registrado normalmente (um botão apertado por engano não apaga a coleta de verdade) |
 | Ficar oscilando entre cheia e não cheia | Histerese de 10% para sair de CHEIA |
-| Sensor IR travado ou piscando (sol, sujeira, sensibilidade no limite) | Ativo direto por mais de 10 s, ou mais de 5 acionamentos em 10 s = defeito: o IR é ignorado, o nível continua sendo medido e o painel mostra "IR travado". Volta a ser usado após 30 s sem atividade |
+| Sensor IR travado ou piscando (sol, sujeira, sensibilidade no limite) | Se o IR impedir a medição por 10 s seguidos (em qualquer ritmo), é considerado com defeito: é ignorado, o nível continua sendo medido e o painel mostra "IR travado". Volta a ser usado após 30 s sem atividade |
 
 Para conferir o hardware sem filtros, há um firmware de diagnóstico (`diag/diag.cpp`) que mostra no Serial o valor cru de cada sensor: `pio run -e diag -t upload` e depois `pio device monitor`. Para voltar ao EcoBin: `pio run -e esp32dev -t upload`.
 | Temperatura (Recife ~28 °C × 20 °C padrão) | Velocidade do som corrigida: ~1,5% de erro a menos |

@@ -88,13 +88,12 @@
 #define INTERVALO_PING_MS     60   // minimo recomendado pelo HC-SR04 entre medicoes
 #define PAUSA_DESCARTE_MS   2000   // ignora o ultrassonico durante e logo apos um descarte
 // IR com defeito (sujeira, sol, sensibilidade no limite) e ignorado para nao travar a medicao:
-#define IR_TRAVADO_MS      10000   // ativo direto por mais que isso = travado
-#define IR_JANELA_MS       10000   // ...ou mais de IR_MAX_ACIONAMENTOS nesta janela = piscando
-#define IR_MAX_ACIONAMENTOS    5
+#define IR_TRAVADO_MS      10000   // IR impedindo a medicao (travado ou piscando) por mais que isso = defeito
 #define IR_RECUPERA_MS     30000   // volta a ser usado depois deste tempo sem nenhuma atividade
 #define HEARTBEAT_MS       10000   // publica o nivel mesmo sem mudanca
 #define DIAG_MS            30000
 #define JANELA_COLETA_MS   60000   // avisos de coleta dentro deste tempo contam como a mesma coleta
+#define JANELA_MANUAL_MS  900000   // 15 min: esvaziamento detectado ate este tempo apos o botao/painel = mesma coleta
 #define WIFI_TIMEOUT_MS    15000
 #define BACKOFF_MIN_MS      1000   // espera entre tentativas de reconexao (dobra a cada falha)
 #define BACKOFF_MAX_MS     30000

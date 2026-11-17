@@ -30,10 +30,9 @@ typedef struct {
   Estado   estado;
   int      limiar;     // % para considerar cheia
   uint32_t descartes;  // desde o ultimo esvaziamento
-  bool     sensorOk;   // false ate a 1a leitura valida ou apos FALHAS_SENSOR leituras sem eco
+  bool     sensorOk;   // nivel atual valido? false ate a 1a leitura e apos FALHAS_SENSOR ciclos sem leitura
   int      pico;       // maior nivel (confirmado) desde a ultima coleta
-  bool     irOk;       // false quando o IR fica ativo por mais de IR_TRAVADO_MS
-  bool     aguardaVazio; // coleta marcada no botao/painel: deteccao automatica so volta depois de ver a lixeira vazia
+  bool     irOk;       // false quando o IR impede a medicao por mais de IR_TRAVADO_MS
 } Lixeira;
 
 // Eventos que nao podem se perder: ficam na fila ate serem publicados
@@ -63,7 +62,7 @@ SemaphoreHandle_t mutexSerial;
 TaskHandle_t      hEsvaziar;
 TaskHandle_t      tarefas[6];     // para o diagnostico de stack
 
-Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0, true, false };
+Lixeira lixeira = { 0, 0, NORMAL, LIMIAR_PADRAO, 0, false, 0, true };
 
 WiFiClient   wifiClient;
 PubSubClient mqtt(wifiClient);
@@ -190,37 +189,27 @@ bool descarteEmAndamento() {
          (tickUltimoIR != 0 && xTaskGetTickCount() - tickUltimoIR < pdMS_TO_TICKS(PAUSA_DESCARTE_MS));
 }
 
-// Detecta IR com defeito, que pausaria o ultrassonico e contaria descartes falsos. Dois sintomas:
-//   - travado: ativo por mais de IR_TRAVADO_MS seguidos (um descarte dura 1-2 s);
-//   - piscando: mais de IR_MAX_ACIONAMENTOS em IR_JANELA_MS (sensibilidade no limite, sol).
-// Com defeito, o IR e ignorado; volta a ser usado depois de IR_RECUPERA_MS sem nenhuma atividade.
-// Chamada a cada ciclo da TaskSensor (1 s).
-void vigiarIR() {
-  static TickType_t inicioAtivo = 0, inicioJanela = 0, ultimaAtividade = 0;
-  static uint32_t totalNaJanela = 0, ultimoTotal = 0;
+// Detecta IR com defeito pelo efeito que importa: o ultrassonico ficar pausado por causa dele.
+// Um descarte de verdade pausa a medicao por 2-4 s. Se o IR (travado em "detectando" OU piscando,
+// em qualquer ritmo) impedir a medicao por IR_TRAVADO_MS seguidos, ele e considerado com defeito
+// e ignorado; volta a ser usado depois de IR_RECUPERA_MS sem nenhuma atividade.
+// Chamada a cada ciclo da TaskSensor (1 s); ultimaMedicao = ultimo ciclo em que o ultrassonico mediu.
+void vigiarIR(TickType_t ultimaMedicao) {
+  static TickType_t ultimaAtividade = 0;
+  static uint32_t ultimoTotal = 0;
   TickType_t agora = xTaskGetTickCount();
-  bool ativo = digitalRead(PIN_IR) == LOW;
   uint32_t total = acionamentosIR;
-
-  if (ativo || total != ultimoTotal) ultimaAtividade = agora;
+  if (digitalRead(PIN_IR) == LOW || total != ultimoTotal) ultimaAtividade = agora;
   ultimoTotal = total;
-  if (!ativo) inicioAtivo = 0;
-  else if (inicioAtivo == 0) inicioAtivo = agora;
-  if (inicioJanela == 0 || agora - inicioJanela >= pdMS_TO_TICKS(IR_JANELA_MS)) {
-    inicioJanela = agora;
-    totalNaJanela = total;
-  }
 
   bool mudou = false;
   if (!irTravado) {
-    const char* motivo = nullptr;
-    if (inicioAtivo != 0 && agora - inicioAtivo >= pdMS_TO_TICKS(IR_TRAVADO_MS)) motivo = "ativo direto";
-    else if (total - totalNaJanela > IR_MAX_ACIONAMENTOS) motivo = "piscando";
-    if (motivo) {
+    if (agora - ultimaMedicao >= pdMS_TO_TICKS(IR_TRAVADO_MS)) {
       irTravado = true;
       tickUltimoIR = 0;
       mudou = true;
-      logMsg("[IR] %s: considerado com defeito e ignorado", motivo);
+      logMsg("[IR] pausou a medicao por %d s seguidos: considerado com defeito e ignorado",
+             IR_TRAVADO_MS / 1000);
     }
   } else if (agora - ultimaAtividade >= pdMS_TO_TICKS(IR_RECUPERA_MS)) {
     irTravado = false;
@@ -253,10 +242,11 @@ void TaskSensor(void* pv) {
   TickType_t proximo = xTaskGetTickCount();
   int falhas = 0;   // ciclos seguidos sem eco nenhum
   int alem = 0;     // ciclos seguidos com eco alem do fundo
+  TickType_t ultimaMedicao = xTaskGetTickCount();   // ultimo ciclo nao pausado pelo IR
   for (;;) {
     float v[5];
     int n = 0, nAlem = 0;
-    vigiarIR();
+    vigiarIR(ultimaMedicao);
     bool pausado = descarteEmAndamento();
     for (int i = 0; i < 5 && !pausado; i++) {
       float d = medirDistancia();
@@ -265,6 +255,7 @@ void TaskSensor(void* pv) {
       vTaskDelay(pdMS_TO_TICKS(INTERVALO_PING_MS));
       pausado = descarteEmAndamento();
     }
+    if (!pausado) ultimaMedicao = xTaskGetTickCount();
     if (pausado) {
       // descarte acontecendo: descarta o ciclo inteiro (nao conta como falha do sensor)
     } else if (n >= 3) {  // mediana so vale com a maioria das medicoes validas
@@ -274,10 +265,16 @@ void TaskSensor(void* pv) {
       xQueueSend(filaLeituras, &mediana, 0);
       falhas = alem = 0;
     } else if (nAlem >= 3) {
-      // o sensor responde, so que mais longe que a lixeira: nao e defeito, a leitura so e ignorada
+      // O sensor responde, so que mais longe que a lixeira: nao e defeito de fio, mas tambem nao ha
+      // nivel atual. Depois de FALHAS_SENSOR ciclos o nivel antigo deixa de valer (sensorOk = false):
+      // sem isso, o heartbeat seguia publicando o valor velho como leitura nova e sujava o historico.
       falhas = 0;
-      if (++alem == FALHAS_SENSOR)
-        logMsg("[SENSOR] eco alem do fundo da lixeira (tampa aberta ou sensor desalinhado): leitura ignorada");
+      if (++alem == FALHAS_SENSOR) {
+        xSemaphoreTake(mutexLixeira, portMAX_DELAY);
+        lixeira.sensorOk = false;
+        xSemaphoreGive(mutexLixeira);
+        logMsg("[SENSOR] eco alem do fundo da lixeira (tampa aberta ou sensor desalinhado): sem nivel atual");
+      }
     } else if (++falhas == FALHAS_SENSOR) {
       // sem pulso nenhum: jumper solto ou sensor sem energia. Avisa em vez de repetir o ultimo nivel.
       alem = 0;
@@ -317,13 +314,7 @@ void TaskProcessamento(void* pv) {
     lixeira.nivel = nivel;
     lixeira.estado = e;
     lixeira.sensorOk = true;
-    if (lixeira.aguardaVazio) {
-      // Coleta ja registrada pelo botao/painel antes de a lixeira ser esvaziada de fato:
-      // espera ela aparecer vazia para nao registrar a mesma coleta de novo pela deteccao automatica
-      if (nivel <= AUTO_NIVEL_VAZIA) lixeira.aguardaVazio = false;
-    } else if (sustentado > lixeira.pico) {
-      lixeira.pico = sustentado;
-    }
+    if (sustentado > lixeira.pico) lixeira.pico = sustentado;
     int pico = lixeira.pico;
     baixo = (pico >= AUTO_PICO_MIN && nivel <= AUTO_NIVEL_VAZIA) ? baixo + 1 : 0;
     xSemaphoreGive(mutexLixeira);
@@ -361,29 +352,34 @@ void TaskDescartes(void* pv) {
 // Acordada por Task Notification: ISR do botao, comando "reset" do painel ou deteccao automatica.
 // O valor da notificacao diz quem avisou (bits ORIGEM_*).
 void TaskEsvaziar(void* pv) {
-  TickType_t ultimaColeta = 0;
-  bool houveColeta = false;
+  TickType_t ultimaColeta = 0, ultimaManual = 0;
+  bool houveColeta = false, houveManual = false;
   for (;;) {
     uint32_t origem = 0;
     xTaskNotifyWait(0, UINT32_MAX, &origem, portMAX_DELAY);
-    // botao e deteccao automatica costumam avisar a mesma coleta: registra so uma
-    if (houveColeta && xTaskGetTickCount() - ultimaColeta < pdMS_TO_TICKS(JANELA_COLETA_MS)) {
-      logMsg("[ESVAZIAR] coleta ja registrada ha pouco, aviso ignorado");
+    TickType_t agora = xTaskGetTickCount();
+    bool manual = origem & (ORIGEM_BOTAO | ORIGEM_PAINEL);
+    // Avisos repetidos em menos de JANELA_COLETA_MS sao a mesma coleta. E o funcionario costuma
+    // apertar o botao ANTES de trocar o saco: a deteccao automatica ate JANELA_MANUAL_MS depois
+    // tambem e a mesma coleta. Passado esse tempo, o esvaziamento e registrado normalmente:
+    // assim um botao apertado por engano nao apaga a coleta de verdade que vier depois.
+    bool repetida = houveColeta && agora - ultimaColeta < pdMS_TO_TICKS(JANELA_COLETA_MS);
+    bool mesmaDoManual = !manual && houveManual && agora - ultimaManual < pdMS_TO_TICKS(JANELA_MANUAL_MS);
+    if (repetida || mesmaDoManual) {
+      xSemaphoreTake(mutexLixeira, portMAX_DELAY);
+      lixeira.pico = lixeira.nivel;   // a deteccao automatica recomeca a partir do nivel atual
+      xSemaphoreGive(mutexLixeira);
+      logMsg("[ESVAZIAR] coleta ja registrada (%s), aviso ignorado", repetida ? "ha pouco" : "pelo botao/painel");
       continue;
     }
     houveColeta = true;
-    ultimaColeta = xTaskGetTickCount();
+    ultimaColeta = agora;
+    if (manual) { houveManual = true; ultimaManual = agora; }
     xSemaphoreTake(mutexLixeira, portMAX_DELAY);
     int nivelAntes = max(lixeira.pico, lixeira.nivel);
     uint32_t descartes = lixeira.descartes;
     lixeira.descartes = 0;
-    if (origem & (ORIGEM_BOTAO | ORIGEM_PAINEL)) {
-      // aviso manual pode vir antes da troca do saco: a deteccao automatica espera a lixeira ficar vazia
-      lixeira.pico = 0;
-      lixeira.aguardaVazio = lixeira.nivel > AUTO_NIVEL_VAZIA;
-    } else {
-      lixeira.pico = lixeira.nivel;
-    }
+    lixeira.pico = lixeira.nivel;
     xSemaphoreGive(mutexLixeira);
     enfileirarEvento(EV_ESVAZIADA, nivelAntes, descartes, origem);
     logMsg("[ESVAZIAR] nivel antes = %d%%, descartes = %u, origem = %s", nivelAntes, (unsigned)descartes,
