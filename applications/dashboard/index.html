@@ -97,7 +97,28 @@
   .empty { color: var(--muted); font-size: 14px; }
   .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
   .card-head h2 { margin: 0; }
-  button.mini { padding: 5px 10px; font-size: 13px; }
+  button.mini { padding: 5px 10px; font-size: 13px; white-space: nowrap; }
+  .tabela { overflow-x: auto; }
+  .tabela td:first-child { white-space: nowrap; }
+  .row [data-l]::before { content: none; }
+
+  /* Celular (testado em 375 px): menos espaço desperdiçado e alvos de toque maiores */
+  @media (max-width: 700px) {
+    header { padding: 10px 14px; gap: 8px; }
+    h1 { font-size: 18px; }
+    .head-right { gap: 6px; }
+    .pill { font-size: 12px; padding: 3px 8px; }
+    main { padding: 12px 10px; gap: 12px; }
+    .card { padding: 14px; }
+    .stats { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .stat.larga { grid-column: span 2; }
+    .stat .v { font-size: 24px; }
+    .row { gap: 6px 12px; padding: 12px; }
+    .row [data-l]::before { content: attr(data-l) " "; color: var(--muted); font-weight: 400; font-size: 13px; }
+    button { min-height: 44px; }
+    button.mini { min-height: 40px; padding: 8px 12px; }
+    .big { font-size: 38px; }
+  }
 </style>
 </head>
 <body>
@@ -115,7 +136,7 @@
     <div class="stats">
       <div class="stat"><div class="v" id="sOnline">0/0</div><div class="l">lixeiras online</div></div>
       <div class="stat"><div class="v" id="sCheias">0</div><div class="l">cheias agora</div></div>
-      <div class="stat"><div class="v" id="sProx">—</div><div class="l">próxima a encher</div></div>
+      <div class="stat larga"><div class="v" id="sProx">—</div><div class="l">próxima a encher</div></div>
       <div class="stat"><div class="v" id="sMedia">—</div><div class="l">nível médio</div></div>
       <div class="stat"><div class="v" id="sDesc">0</div><div class="l">descartes desde as coletas</div></div>
     </div>
@@ -179,10 +200,10 @@
       <h2>Histórico de coletas</h2>
       <button id="btnCsvColetas" class="ghost mini" disabled title="Baixa as coletas da lixeira selecionada">Exportar CSV</button>
     </div>
-    <table>
+    <div class="tabela"><table>
       <thead><tr><th>Quando</th><th class="n">Nível</th><th class="n">Descartes</th><th>Origem</th></tr></thead>
       <tbody id="coletas"></tbody>
-    </table>
+    </table></div>
     <p class="empty" id="coletasVazia">Nenhuma coleta registrada.</p>
   </section>
 
@@ -328,6 +349,9 @@
     atualizarBotaoNotif();
   };
   function atualizarBotaoNotif() {
+    // No celular, aberto por http://IP_DO_PC:5000, o navegador não permite notificações (só em https
+    // ou localhost). Nesse caso o botão some em vez de não fazer nada.
+    if (!("Notification" in window) || !window.isSecureContext) { $("btnNotif").style.display = "none"; return; }
     const ok = "Notification" in window && Notification.permission === "granted";
     $("btnNotif").textContent = ok ? "Notificações ativas" : "Ativar notificações";
     $("btnNotif").disabled = ok;
@@ -376,8 +400,8 @@
               title: "Sensor IR travado: nível medido normalmente, descartes não contados" }, "IR")
           : b.estado ? el("span", { class: "chip", style: `color:${cor};border-color:${cor}` }, NOME[b.estado])
           : el("span", { class: "loc" }, "sem dados"),
-        el("span", {}, eta(b).txt),
-        el("span", { class: "num", style: "text-align:left" }, b.descartes ?? 0),
+        el("span", { "data-l": "Enche em" }, eta(b).txt),
+        el("span", { class: "num", style: "text-align:left", "data-l": "Descartes" }, b.descartes ?? 0),
         el("span", {}, el("span", { class: "dot", style: `background:${css(b.online ? "--ok" : "--bad")}` }),
           b.online ? "online" : "offline"));
       row.onclick = () => { selecionada = b.id; escolhaManual = true; render(); syncSlider(); };
