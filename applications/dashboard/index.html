@@ -95,6 +95,9 @@
   ul.log li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
   ul.log time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-size: 14px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .card-head h2 { margin: 0; }
+  button.mini { padding: 5px 10px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -164,12 +167,18 @@
   </section>
 
   <section class="card c8">
-    <h2>Nível ao longo do tempo</h2>
+    <div class="card-head">
+      <h2>Nível ao longo do tempo</h2>
+      <button id="btnCsvLeituras" class="ghost mini" disabled title="Baixa as leituras da lixeira selecionada">Exportar CSV</button>
+    </div>
     <div class="chart-box"><canvas id="chart"></canvas></div>
   </section>
 
   <section class="card c4">
-    <h2>Histórico de coletas</h2>
+    <div class="card-head">
+      <h2>Histórico de coletas</h2>
+      <button id="btnCsvColetas" class="ghost mini" disabled title="Baixa as coletas da lixeira selecionada">Exportar CSV</button>
+    </div>
     <table>
       <thead><tr><th>Quando</th><th class="n">Nível</th><th class="n">Descartes</th><th>Origem</th></tr></thead>
       <tbody id="coletas"></tbody>
@@ -382,6 +391,8 @@
     $("btnReset").disabled = !on;
     $("btnLimiar").disabled = !on;
     $("slLimiar").disabled = !on;
+    $("btnCsvLeituras").disabled = !b;
+    $("btnCsvColetas").disabled = !b;
     if (!b) return;
     const cor = corEstado(b.estado);
     $("dTitulo").textContent = `Lixeira ${b.id}`;
@@ -632,6 +643,63 @@
     enviarCmd({ limiar: v });
     logEvento(`Limiar de ${selecionada} ajustado para ${v}%`);
   };
+
+  // ---------- Exportar CSV (para as tabelas e gráficos do relatório) ----------
+  // Formato do Excel em português: ";" separa as colunas, "," é a casa decimal.
+  // O BOM (\uFEFF) no início faz o Excel ler os acentos como UTF-8.
+  // dd/mm/aaaa hh:mm:ss, sem a vírgula do toLocaleString, para o Excel reconhecer como data
+  const dataHora = t => {
+    const d = new Date(t), z = n => String(n).padStart(2, "0");
+    return `${z(d.getDate())}/${z(d.getMonth() + 1)}/${d.getFullYear()} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+  };
+  const decimal = (v, casas) => v == null ? "" : v.toFixed(casas).replace(".", ",");
+  function campoCsv(v) {
+    const s = String(v ?? "");
+    return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  function baixarCsv(nome, cabecalho, linhas) {
+    const texto = "\uFEFF" + [cabecalho, ...linhas].map(l => l.map(campoCsv).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([texto], { type: "text/csv;charset=utf-8" }));
+    const a = el("a", { href: url, download: nome });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  // data local no nome (toISOString usaria UTC e viraria o dia depois das 21h)
+  const nomeCsv = (id, tipo) => `ecobin-${id}-${tipo}-${dataHora(Date.now()).slice(0, 10).split("/").reverse().join("-")}.csv`;
+
+  // Com o back-end ligado exporta do banco (até 30 dias); sem ele, o que está na memória do painel.
+  async function exportarLeituras() {
+    const id = selecionada;
+    if (!id) return;
+    let pts;
+    try {
+      pts = (await api(`/api/lixeiras/${id}/leituras?horas=720`))
+        .map(p => ({ t: p.t, n: p.nivel, l: p.limiar, d: p.dist_cm, e: p.estado }));
+    } catch {
+      pts = bins[id].hist;
+    }
+    baixarCsv(nomeCsv(id, "leituras"),
+      ["Data/hora", "Nível (%)", "Limiar (%)", "Distância (cm)", "Estado"],
+      pts.map(p => [dataHora(p.t), p.n, p.l ?? "", decimal(p.d, 1), NOME[p.e] || ""]));
+  }
+  async function exportarColetas() {
+    const id = selecionada;
+    if (!id) return;
+    let lista;
+    try {
+      lista = (await api(`/api/lixeiras/${id}/coletas?limite=500`))
+        .map(c => ({ t: c.t, nivel: c.nivel, descartes: c.descartes, origem: c.origem }));
+    } catch {
+      lista = bins[id].coletas;
+    }
+    baixarCsv(nomeCsv(id, "coletas"),
+      ["Data/hora", "Nível antes (%)", "Descartes", "Origem"],
+      lista.map(c => [dataHora(c.t), c.nivel ?? "", c.descartes ?? "", ORIGEM_TABELA[c.origem] || ""]));
+  }
+  $("btnCsvLeituras").onclick = exportarLeituras;
+  $("btnCsvColetas").onclick = exportarColetas;
 
   // Atualiza previsões mesmo sem mensagens novas
   setInterval(render, 5000);
