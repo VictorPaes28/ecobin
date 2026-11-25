@@ -497,6 +497,18 @@
     return r.json();
   }
 
+  // Junta o histórico do banco com o que já está no painel, sem perder leituras.
+  // O banco é a fonte oficial até a última leitura dele. Do painel só entram as leituras mais novas
+  // que isso: as que chegaram pelo MQTT enquanto o banco respondia (ou com o back-end desligado).
+  // A mesma leitura recebida pelo back-end e pelo painel tem horários quase iguais (cada um anota a
+  // hora em que recebeu), então tudo a menos de MESMA_LEITURA_MS da última do banco é repetido.
+  const MESMA_LEITURA_MS = 1000;   // o ESP32 e o simulador publicam a cada 2 s
+  function juntarHistorico(doBanco, local) {
+    const ultimoBanco = doBanco.length ? doBanco[doBanco.length - 1].t : -Infinity;
+    const novos = local.filter(p => p.t > ultimoBanco + MESMA_LEITURA_MS);
+    return [...doBanco, ...novos].sort((a, b) => a.t - b.t).slice(-HIST_MAX);
+  }
+
   async function carregarDoBanco() {
     try {
       const lista = await api("/api/lixeiras");
@@ -508,9 +520,9 @@
         ]);
         const b = getBin(l.id);
         if (l.local && !b.local) b.local = l.local;
-        // O banco é a fonte oficial: substitui o que estava salvo só neste navegador.
-        // Leituras que chegarem pelo MQTT daqui para frente continuam sendo acrescentadas.
-        b.hist = leituras.slice(-HIST_MAX).map(p => ({ t: p.t, n: p.nivel, l: p.limiar }));
+        // O banco substitui o que estava salvo só neste navegador, mas sem apagar as leituras
+        // ao vivo que chegaram antes de ele responder (ver juntarHistorico).
+        b.hist = juntarHistorico(leituras.map(p => ({ t: p.t, n: p.nivel, l: p.limiar })), b.hist);
         b.coletas = coletas.map(c => ({ t: c.t, nivel: c.nivel ?? 0, descartes: c.descartes ?? 0,
                                         origem: ORIGENS.has(c.origem) ? c.origem : null }));
         b.desdeColeta = coletas.length ? coletas[0].t : 0;
