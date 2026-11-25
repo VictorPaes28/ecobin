@@ -171,7 +171,7 @@
   <section class="card c4">
     <h2>Histórico de coletas</h2>
     <table>
-      <thead><tr><th>Quando</th><th class="n">Nível</th><th class="n">Descartes</th></tr></thead>
+      <thead><tr><th>Quando</th><th class="n">Nível</th><th class="n">Descartes</th><th>Origem</th></tr></thead>
       <tbody id="coletas"></tbody>
     </table>
     <p class="empty" id="coletasVazia">Nenhuma coleta registrada.</p>
@@ -207,6 +207,10 @@
   const COR = { NORMAL: "--ok", ATENCAO: "--warn", CHEIA: "--bad" };
   const NOME = { NORMAL: "Normal", ATENCAO: "Atenção", CHEIA: "Cheia" };
   const hora = t => new Date(t).toLocaleTimeString("pt-BR");
+  // Origem da coleta, como o firmware/simulador manda no evento ESVAZIADA
+  const ORIGENS = new Set(["botao", "painel", "automatica"]);
+  const ORIGEM_TABELA = { botao: "Botão", painel: "Painel", automatica: "Automática" };
+  const ORIGEM_LOG = { botao: "botão", painel: "painel", automatica: "detectada automaticamente" };
 
   function el(tag, attrs = {}, ...kids) {
     const e = document.createElement(tag);
@@ -401,7 +405,8 @@
     const corpo = $("coletas");
     corpo.replaceChildren(...b.coletas.slice(0, 10).map(c =>
       el("tr", {}, el("td", {}, new Date(c.t).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })),
-        el("td", { class: "n" }, c.nivel + "%"), el("td", { class: "n" }, c.descartes))));
+        el("td", { class: "n" }, c.nivel + "%"), el("td", { class: "n" }, c.descartes),
+        el("td", {}, ORIGEM_TABELA[c.origem] || "—"))));
     $("coletasVazia").style.display = b.coletas.length ? "none" : "";
 
     const diag = $("diag");
@@ -495,7 +500,8 @@
         // O banco é a fonte oficial: substitui o que estava salvo só neste navegador.
         // Leituras que chegarem pelo MQTT daqui para frente continuam sendo acrescentadas.
         b.hist = leituras.slice(-HIST_MAX).map(p => ({ t: p.t, n: p.nivel, l: p.limiar }));
-        b.coletas = coletas.map(c => ({ t: c.t, nivel: c.nivel ?? 0, descartes: c.descartes ?? 0 }));
+        b.coletas = coletas.map(c => ({ t: c.t, nivel: c.nivel ?? 0, descartes: c.descartes ?? 0,
+                                        origem: ORIGENS.has(c.origem) ? c.origem : null }));
         b.desdeColeta = coletas.length ? coletas[0].t : 0;
       }
       $("api").textContent = "Histórico: banco de dados";
@@ -600,12 +606,11 @@
       notificar("EcoBin: lixeira cheia", `${id} está com ${nivel}%${onde}`);
     } else if (sub === "evento" && d.tipo === "ESVAZIADA") {
       const nivel = inteiro(d.nivel_antes, 0, 100) ?? 0, descartes = inteiro(d.descartes, 0, 1e9) ?? 0;
-      const ORIGEM = { botao: "botão", painel: "painel", automatica: "detectada automaticamente" };
-      const origem = ORIGEM[d.origem] || "";
-      b.coletas.unshift({ t: agora, nivel, descartes });
+      const origem = ORIGENS.has(d.origem) ? d.origem : null;
+      b.coletas.unshift({ t: agora, nivel, descartes, origem });
       b.coletas = b.coletas.slice(0, 50);
       b.desdeColeta = agora;
-      logEvento(`✅ ${id} esvaziada (estava em ${nivel}%, ${descartes} descartes${origem ? ", " + origem : ""})`);
+      logEvento(`✅ ${id} esvaziada (estava em ${nivel}%, ${descartes} descartes${origem ? ", " + ORIGEM_LOG[origem] : ""})`);
     } else if (sub === "diag") {
       const stack = {};
       for (const [k, v] of Object.entries(d.stack || {})) {
